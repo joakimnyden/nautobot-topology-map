@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Run Black
+        run: uv run black --check .
+      - name: Run Flake8
+        run: uv run flake8 .
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: nautobot
+          POSTGRES_DB: nautobot
+          POSTGRES_PASSWORD: nautobot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:6-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install dependencies
+        run: uv sync --extra test
+      - name: Initialize Nautobot
+        env:
+          NAUTOBOT_DB_HOST: localhost
+          NAUTOBOT_DB_USER: nautobot
+          NAUTOBOT_DB_NAME: nautobot
+          NAUTOBOT_DB_PASSWORD: nautobot
+          NAUTOBOT_REDIS_HOST: localhost
+          DJANGO_SETTINGS_MODULE: nautobot.core.settings
+        run: |
+          uv run nautobot-server init
+      - name: Run Tests
+        env:
+          NAUTOBOT_DB_HOST: localhost
+          NAUTOBOT_DB_USER: nautobot
+          NAUTOBOT_DB_NAME: nautobot
+          NAUTOBOT_DB_PASSWORD: nautobot
+          NAUTOBOT_REDIS_HOST: localhost
+          DJANGO_SETTINGS_MODULE: nautobot.core.settings
+        run: uv run pytest
