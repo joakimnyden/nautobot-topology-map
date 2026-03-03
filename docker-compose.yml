@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=nautobot
+      - POSTGRES_USER=nautobot
+      - POSTGRES_PASSWORD=nautobot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nautobot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: sh -c "redis-server --requirepass $$REDIS_PASSWORD"
+    environment:
+      - REDIS_PASSWORD=nautobot
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nautobot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nautobot-topology:local
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NAUTOBOT_DB_HOST=postgres
+      - NAUTOBOT_DB_NAME=nautobot
+      - NAUTOBOT_DB_USER=nautobot
+      - NAUTOBOT_DB_PASSWORD=nautobot
+      - NAUTOBOT_REDIS_HOST=redis
+      - NAUTOBOT_REDIS_PASSWORD=nautobot
+      - NAUTOBOT_SECRET_KEY=dummy_secret_key_for_testing
+      - NAUTOBOT_ALLOWED_HOSTS=*
+    volumes:
+      - .:/source
+    command: "nautobot-server runserver 0.0.0.0:8080"
+
+  celery:
+    image: nautobot-topology:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NAUTOBOT_DB_HOST=postgres
+      - NAUTOBOT_DB_NAME=nautobot
+      - NAUTOBOT_DB_USER=nautobot
+      - NAUTOBOT_DB_PASSWORD=nautobot
+      - NAUTOBOT_REDIS_HOST=redis
+      - NAUTOBOT_REDIS_PASSWORD=nautobot
+      - NAUTOBOT_SECRET_KEY=dummy_secret_key_for_testing
+    volumes:
+      - .:/source
+    command: "nautobot-server celery worker -l INFO"
+
+volumes:
+  pgdata:

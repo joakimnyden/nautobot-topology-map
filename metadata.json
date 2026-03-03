@@ -1,0 +1,7 @@
+{
+  "name": "Nautobot Topology Visualization",
+  "description": "An advanced network topology visualization plugin for Nautobot, featuring interactive global maps and site-level D3 graphs with real-time health indicators.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
