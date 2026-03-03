@@ -9,7 +9,7 @@ description = "Nautobot Topology Visualization Plugin"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    { name = "Joakim Nyden", email = "joakim@nydenconsulting.se" },
+    { name = "Joakim Nyden", email = "joakim.nyden@gmail.com" },
 ]
 license = { text = "Apache-2.0" }
 keywords = ["nautobot", "nautobot-plugin", "topology", "visualization", "network"]
@@ -23,7 +23,12 @@ classifiers = [
     "Topic :: System :: Networking",
 ]
 dependencies = [
-    "nautobot>=3.0.8",
+    "nautobot>=3.0.0",
+    "django-rest-framework",
+    "django-filter",
+    "drf-spectacular",
+    "networkx>=3.0",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -32,10 +37,14 @@ dev = [
     "black",
     "flake8",
     "pylint",
+    "pylint-django",
+    "yamllint",
+    "bandit",
 ]
 test = [
     "pytest",
     "pytest-django",
+    "pytest-cov",
 ]
 
 [project.entry-points."nautobot_plugins"]
