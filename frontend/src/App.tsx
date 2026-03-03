@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Globe, 
-  LayoutDashboard, 
-  Settings, 
-  Bell, 
+import {
+  Globe,
+  LayoutDashboard,
+  Settings,
+  Bell,
   Search,
   User,
   Menu,
@@ -21,7 +21,7 @@ export default function App() {
   const [sites, setSites] = useState<Site[]>(MOCK_SITES);
 
   useEffect(() => {
-    fetch('/api/plugins/topology-nexus/topology')
+    fetch('/api/plugins/nautobot_topology/topology')
       .then(res => res.json())
       .then(response => {
         if (response.status === 'success') {
@@ -34,7 +34,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#050505] text-white overflow-hidden font-sans">
       {/* Sidebar */}
-      <motion.aside 
+      <motion.aside
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 80 }}
         className="relative border-r border-white/5 bg-[#0a0a0a] flex flex-col z-30"
@@ -44,7 +44,7 @@ export default function App() {
             <Globe className="w-5 h-5 text-black" />
           </div>
           {isSidebarOpen && (
-            <motion.span 
+            <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="font-serif italic text-xl tracking-tight"
@@ -55,26 +55,26 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-4 space-y-2">
-          <NavItem 
-            icon={<Globe className="w-5 h-5" />} 
-            label="Network Topology" 
-            active={true} 
+          <NavItem
+            icon={<Globe className="w-5 h-5" />}
+            label="Network Topology"
+            active={true}
             collapsed={!isSidebarOpen}
             onClick={() => setSelectedSite(null)}
           />
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <NavItem 
-            icon={<Settings className="w-5 h-5" />} 
-            label="Settings" 
-            active={false} 
+          <NavItem
+            icon={<Settings className="w-5 h-5" />}
+            label="Settings"
+            active={false}
             collapsed={!isSidebarOpen}
-            onClick={() => {}}
+            onClick={() => { }}
           />
         </div>
 
-        <button 
+        <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           className="absolute -right-3 top-20 w-6 h-6 bg-white/10 border border-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors z-40"
         >
@@ -88,9 +88,9 @@ export default function App() {
           <div className="flex items-center gap-4 flex-1 max-w-xl">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-              <input 
-                type="text" 
-                placeholder="Search devices or sites..." 
+              <input
+                type="text"
+                placeholder="Search devices or sites..."
                 className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
               />
             </div>
@@ -149,11 +149,10 @@ function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group ${
-        active 
-          ? 'bg-emerald-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
+      className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group ${active
+          ? 'bg-emerald-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.2)]'
           : 'text-white/40 hover:bg-white/5 hover:text-white'
-      }`}
+        }`}
     >
       <div className="shrink-0">{icon}</div>
       {!collapsed && (
@@ -162,7 +161,7 @@ function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
         </span>
       )}
       {active && !collapsed && (
-        <motion.div 
+        <motion.div
           layoutId="active-pill"
           className="ml-auto w-1.5 h-1.5 bg-black rounded-full"
         />

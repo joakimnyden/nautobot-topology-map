@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 .env.example
+uv.lock
+.venv/
+package-lock.json
+nautobot_topology/static/nautobot_topology/*
