@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'nautobot_topology/assets/index.css' %}">
+<div id="root"></div>
+<script type="module" src="{% static 'nautobot_topology/assets/index.js' %}"></script>
+{% endblock %}

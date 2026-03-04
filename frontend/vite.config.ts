@@ -14,6 +14,13 @@ export default defineConfig(({ mode }) => {
       outDir: '../nautobot_topology/static/nautobot_topology/',
       emptyOutDir: true,
       manifest: true,
+      rollupOptions: {
+        output: {
+          entryFileNames: `assets/[name].js`,
+          chunkFileNames: `assets/[name].js`,
+          assetFileNames: `assets/[name].[ext]`,
+        },
+      },
     },
     resolve: {
       alias: {

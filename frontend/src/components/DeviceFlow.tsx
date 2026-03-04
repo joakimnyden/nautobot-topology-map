@@ -334,7 +334,7 @@ export default function DeviceFlow({ devices, links, siteId }: DeviceFlowProps) 
       });
 
       try {
-        const response = await fetch(`/api/plugins/nexus/topology/${siteId}/layout`);
+        const response = await fetch(`/api/plugins/nautobot_topology/${siteId}/layout`);
         const savedLayout = await response.json();
         
         if (savedLayout.nodes && savedLayout.nodes.length > 0) {

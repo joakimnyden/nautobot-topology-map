@@ -4,9 +4,9 @@ __version__ = "1.0.0"
 
 class TopologyConfig(NautobotAppConfig):
     name = 'nautobot_topology'
-    verbose_name = 'Nautobot Topology Nexus'
+    verbose_name = 'Nautobot Topology'
     description = 'Global and site-level network topology visualization.'
     version = '1.0.0'
-    base_url = 'topology-nexus'
+    base_url = 'nautobot_topology'
 
 config = TopologyConfig
