@@ -11,12 +11,12 @@ async function startServer() {
   // Simulated persistence for topology layouts
   const layoutStore: Record<string, any> = {};
 
-  app.get("/api/plugins/topology-nexus/topology/:siteId/layout", (req, res) => {
+  app.get("/api/plugins/nautobot_topology/topology/:siteId/layout", (req, res) => {
     const { siteId } = req.params;
     res.json(layoutStore[siteId] || { nodes: [] });
   });
 
-  app.post("/api/plugins/topology-nexus/topology/:siteId/layout", (req, res) => {
+  app.post("/api/plugins/nautobot_topology/topology/:siteId/layout", (req, res) => {
     const { siteId } = req.params;
     const { nodes } = req.body;
     layoutStore[siteId] = { nodes };
@@ -24,7 +24,7 @@ async function startServer() {
   });
 
   // Simulated Nautobot API Endpoints
-  app.get("/api/plugins/topology-nexus/topology", (req, res) => {
+  app.get("/api/plugins/nautobot_topology/topology", (req, res) => {
     // In a real plugin, this would query Nautobot's ORM (Device, Interface, Cable, etc.)
     res.json({
       status: "success",

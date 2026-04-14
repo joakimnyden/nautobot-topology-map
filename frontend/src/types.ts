@@ -25,7 +25,7 @@ export interface Device {
   vendor?: string; // e.g., 'Cisco', 'Arista', 'Juniper'
   status: DeviceStatus;
   primaryIp: string;
-  vlans?: number[];
+  vlans?: string[];
   protocols?: string[];
   prefixes?: string[];
   nautobotUrl?: string;

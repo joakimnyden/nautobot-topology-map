@@ -1,10 +1,10 @@
-from nautobot.apps.ui import NavMenuTab, NavMenuSection, NavMenuItem
+from nautobot.apps.ui import NavMenuTab, NavMenuGroup, NavMenuItem
 
 menu_items = (
     NavMenuTab(
-        name="Nexus",
+        name="Topology",
         groups=(
-            NavMenuSection(
+            NavMenuGroup(
                 name="Topology",
                 items=(
                     NavMenuItem(
