@@ -9,4 +9,12 @@ class TopologyConfig(NautobotAppConfig):
     version = '1.0.0'
     base_url = 'nautobot_topology'
 
+    default_settings = {
+        'prometheus_enabled': False,
+        'prometheus_url': 'http://prometheus:9090',
+        'prometheus_query_tx': 'rate(ifOutOctets{{instance="{device}", ifName="{interface}"}}[5m]) * 8',
+        'prometheus_query_rx': 'rate(ifInOctets{{instance="{device}", ifName="{interface}"}}[5m]) * 8',
+        'topology_style': 'fancy',
+    }
+
 config = TopologyConfig

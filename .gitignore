@@ -1,14 +1,33 @@
+# Dependency directories
 node_modules/
+.venv/
+.env*
+!.env.example
+
+# Build and distribution
 build/
 dist/
+*.egg-info/
+
+# Tests and Coverage
 coverage/
-.DS_Store
+.pytest_cache/
+.tox/
 *.log
-.env*
-.env.example
-uv.lock
-.venv/
-package-lock.json
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Frontend built assets (ignored because they are generated from 'frontend/')
 nautobot_topology/static/nautobot_topology/*
-.vscode
-*__pycache__/
+!nautobot_topology/static/nautobot_topology/.gitkeep

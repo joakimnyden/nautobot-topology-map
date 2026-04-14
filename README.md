@@ -1,6 +1,6 @@
 # Nautobot Topology Plugin
 
-An advanced network topology visualization plugin for Nautobot v3.0.8+. This plugin provides both macro (Global) and micro (Site-level) views of your infrastructure with real-time health indicators.
+An advanced network topology visualization plugin for Nautobot v3.0+. This plugin provides both macro (Global) and micro (Site-level) views of your infrastructure with real-time health indicators.
 
 ## Features
 
@@ -11,77 +11,121 @@ An advanced network topology visualization plugin for Nautobot v3.0.8+. This plu
 
 ## Installation
 
-### Using pip
-1. Install the package:
+### Installation from Source
+
+To install the plugin from source in a Nautobot environment:
+
+1. **Clone the repository**:
    ```bash
-   pip install nautobot-topology
+   git clone https://github.com/your-org/nautobot-topology.git
+   cd nautobot-topology
    ```
 
-2. Enable the plugin in `nautobot_config.py`:
+2. **Build the frontend assets**:
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+   ```
+   *Note: This generates the static assets that will be packaged with the plugin.*
+
+3. **Activate the Nautobot virtual environment**:
+   ```bash
+   source /opt/nautobot/bin/activate
+   ```
+
+4. **Install the package**:
+   ```bash
+   pip install .
+   ```
+   *Note: Use `-e` for an editable installation if you plan to make changes.*
+
+4. **Enable the plugin** in your `nautobot_config.py`:
    ```python
    PLUGINS = [
-       'nautobot_topology',
+       "nautobot_topology",
    ]
    ```
 
-3. Run migrations and collect static files:
+5. **Finalize the installation**:
    ```bash
-   nautobot-server migrate
-   nautobot-server collectstatic
+   nautobot-server post_upgrade
+   ```
+
+6. **Restart Nautobot services**:
+   ```bash
+   sudo systemctl restart nautobot nautobot-worker
    ```
 
 ## Development
 
-### Local Setup with uv
-`uv` is a fast Python package manager recommended for development.
-```bash
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-```
+### Local Setup with `uv`
 
-### Frontend Development
-The UI is built with React. To modify the frontend:
-1. Navigate to the `frontend/` directory.
-2. Run `npm install` and `npm run build`.
-3. The `vite.config.ts` is configured to output the compiled assets directly to `nautobot_topology/static/nautobot_topology/`.
+`uv` is the recommended Python package manager for this project.
 
-### Docker Development
-```bash
-invoke build
-invoke start
+1. **Clone and initialize**:
+   ```bash
+   git clone <repo-url>
+   cd nautobot-topology
+   uv venv
+   source .venv/bin/activate
+   uv pip install -e ".[dev]"
+   ```
+
+### Frontend Development (Mock Server)
+
+For rapid UI development, you can run the frontend in isolation with a mock backend:
+
+1. **Navigate to the frontend directory**:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+2. Access the development UI at `http://localhost:3000`. This uses `frontend/server.ts` to simulate Nautobot API responses.
+
+### Full Environment with Docker
+
+To test the plugin within a live Nautobot instance:
+
+1. **Build and start**:
+   ```bash
+   invoke build
+   invoke start
+   ```
+2. The environment will be available at `http://localhost:8080`.
+
+## Project Structure
+
+```text
+nautobot-topology/
+├── pyproject.toml      # Python package configuration
+├── tasks.py            # Invoke automation tasks
+├── nautobot_topology/  # Python source code
+│   ├── api/            # REST API endpoints
+│   ├── navigation.py   # Nautobot UI navigation
+│   ├── static/         # Built frontend assets
+│   ├── templates/      # Django templates
+│   ├── urls.py         # URL routing
+│   └── views.py        # Django views
+└── frontend/           # React frontend source
+    ├── src/            # UI components and logic
+    ├── server.ts       # Mock backend for development
+    └── vite.config.ts  # Build configuration
 ```
 
 ## Building and Releasing
 
 ### Manual Build
-To build the package locally using `uv`:
-1. Build the frontend:
+1. **Build the frontend**:
    ```bash
-   cd frontend && npm install && npm run build && cd ..
+   npm run build --prefix frontend
    ```
-2. Build the Python package:
+2. **Build the Python package**:
    ```bash
    uv build
    ```
-The built files will be in the `dist/` directory.
 
-### Automated Release (GitHub Actions)
-This project includes a GitHub Actions workflow (`.github/workflows/release.yml`) that automates the build and release process.
-
-1. **Triggering a Release**:
-   - Push a new tag starting with `v` (e.g., `v1.0.0`):
-     ```bash
-     git tag v1.0.0
-     git push origin v1.0.0
-     ```
-2. **What the Pipeline Does**:
-   - Builds the React frontend.
-   - Builds the Python wheel and source distribution.
-   - Creates a GitHub Release with the built assets.
-   - (Optional) Publishes to PyPI if configured.
-
-3. **PyPI Configuration**:
-   - To enable PyPI publishing, add a `PYPI_API_TOKEN` secret to your GitHub repository and uncomment the "Publish to PyPI" step in `.github/workflows/release.yml`.
-
-For more detailed development instructions, see the [Plugin README](./README.md).
+### Automated Release
+Push a new tag starting with `v` (e.g., `v1.0.0`) to trigger the GitHub Actions release pipeline.

@@ -412,9 +412,9 @@ export default function TopologyMap({ sites, onSiteSelect }: TopologyMapProps) {
       </AnimatePresence>
 
       <div className="absolute bottom-8 left-8 flex flex-col gap-4">
-        <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-2xl shadow-xl">
+        <div className="bg-[#1e293b] border border-slate-700 p-6 rounded-2xl shadow-xl min-h-[160px] min-w-[220px]">
           <h4 className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-3">Map Legend</h4>
-          <div className="space-y-2">
+          <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
               <span className="text-xs text-slate-300">Operational Site</span>

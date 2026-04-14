@@ -42,7 +42,12 @@ PLUGINS = ["nautobot_topology"]
 # Plugins configuration settings. These settings are used by various plugins that the user may have installed.
 # Each key in the dictionary is the name of an installed plugin and its value is a dictionary of settings.
 PLUGINS_CONFIG = {
-    "nautobot_topology": {},
+    "nautobot_topology": {
+        "prometheus_enabled": True,
+        "prometheus_url": "mock",
+        "topology_style": "fancy",
+        "cache_timeout": 300,
+    },
 }
 
 

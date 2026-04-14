@@ -31,7 +31,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-full relative bg-[#050505] text-white font-sans overflow-hidden" style={{ minHeight: 'calc(100vh - 160px)', borderRadius: '12px' }}>
+    <div className="w-full relative bg-transparent text-white font-sans overflow-hidden" style={{ minHeight: 'calc(100vh - 160px)', borderRadius: '1.5rem' }}>
       <AnimatePresence mode="wait">
         <motion.div
           key={selectedSite?.id || 'global'}
@@ -39,7 +39,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.3 }}
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 w-full h-full rounded-3xl overflow-hidden"
         >
           {selectedSite ? (
             <SiteTopology site={selectedSite} onBack={() => setSelectedSite(null)} />
