@@ -5,9 +5,12 @@ An advanced network topology visualization plugin for Nautobot v3.0+. This plugi
 ## Features
 
 - **Global Infrastructure Map**: Interactive world map showing site distribution and operational status.
-- **Site Topology Graph**: D3-powered force-directed graph visualizing device connections.
-- **Protocol Awareness**: Visual distinction between physical links and logical protocols (BGP, HSRP, VXLAN, MLAG).
-- **Interactive Navigation**: Seamless zoom, pan, and drill-down from global to site views.
+- **Site Topology Graph**: High-performance React Flow graph visualizing physical and logical connectivity.
+- **Layout Persistence**: User-defined node positions are saved to the Nautobot backend and restored on refresh.
+- **High-Fidelity Export**: Built-in PNG snapshot generator with UI-filtering for professional documentation.
+- **Modern Aesthetic**: Premium "glassmorphism" UI with ultra-rounded corners and integrated typographic controls.
+- **Double-Click Navigation**: Deep integration with Nautobot for direct object inspection.
+- **Protocol Awareness**: Deep discovery of BGP peerings, LAG memberships, and logical adjacencies.
 
 ## Installation
 
@@ -102,6 +105,7 @@ To test the plugin within a live Nautobot instance:
 nautobot-topology/
 ├── pyproject.toml      # Python package configuration
 ├── tasks.py            # Invoke automation tasks
+├── docs/               # Advanced workflow and internal documentation
 ├── nautobot_topology/  # Python source code
 │   ├── api/            # REST API endpoints
 │   ├── navigation.py   # Nautobot UI navigation
@@ -110,10 +114,20 @@ nautobot-topology/
 │   ├── urls.py         # URL routing
 │   └── views.py        # Django views
 └── frontend/           # React frontend source
-    ├── src/            # UI components and logic
-    ├── server.ts       # Mock backend for development
+    ├── src/            
+    │   ├── hooks/      # Custom React hooks for logic separation
+    │   ├── components/ # Granular UI components
+    │   └── utils/      # Shared utilities
+    ├── vitest.config.ts # Testing configuration
     └── vite.config.ts  # Build configuration
 ```
+
+## Performance & Scalability
+
+The topology map is engineered for high-density environments:
+- **LOD System**: Four levels of detail (Micro, Low, Mid, High) trigger based on zoom thresholds.
+- **Grid Fallback**: Automatic transition from Dagre-force layout to Grid layout for datasets > 500 nodes.
+- **Memoized Lookups**: O(1) device and link resolution using Map-based reconciliation.
 
 ## Building and Releasing
 
