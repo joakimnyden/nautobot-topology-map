@@ -22,27 +22,50 @@ export interface Device {
   siteId: string;
   role: string;
   platform: string;
+  deviceType: string;
   vendor?: string; // e.g., 'Cisco', 'Arista', 'Juniper'
   status: DeviceStatus;
   primaryIp: string;
-  vlans?: string[];
+  vlans?: (string | number)[];
   protocols?: string[];
   prefixes?: string[];
   nautobotUrl?: string;
+  type?: 'device' | 'group';
+  deviceCount?: number;
 }
 
 export interface Link {
   id: string;
   source: string; // Device ID
   target: string; // Device ID
-  type: 'physical' | 'logical';
+  sourceDeviceName?: string;
+  targetDeviceName?: string;
+  type: 'physical' | 'logical' | 'port-channel';
   protocol?: string; // e.g., 'BGP', 'HSRP', 'VXLAN'
   bandwidth?: string;
+  speed?: number; // In Kbps
   vlan?: number;
   sourceInterface?: string; // e.g., 'GigabitEthernet1/0/1'
+  sourceInterfaceType?: string;
   targetInterface?: string;
+  sourceInterfaceUrl?: string;
+  targetInterfaceUrl?: string;
   isPortChannel?: boolean;
-  portChannelMembers?: string[]; // e.g., ['Eth1/1', 'Eth1/2']
+  portChannelMembers?: string[]; // Legacy field
+  lagMembers?: { 
+    sourceInterface: string, 
+    sourceInterfaceId: string, 
+    targetInterface: string, 
+    targetInterfaceId: string 
+  }[];
+  targetInterfaceType?: string;
+  status?: string;
+  description?: string;
+  localAs?: string;
+  remoteAs?: string;
+  localIp?: string;
+  remoteIp?: string;
+  peerGroup?: string;
   nautobotUrl?: string;
 }
 
