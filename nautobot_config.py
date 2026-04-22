@@ -37,7 +37,7 @@ CACHEOPS_REDIS = parse_redis_connection(redis_database=1)
 # PLUGINS = ["nautobot_example_plugin"]
 
 # Plugin configuration
-PLUGINS = ["nautobot_topology"]
+PLUGINS = ["nautobot_topology", "nautobot_bgp_models"]
 
 # Plugins configuration settings. These settings are used by various plugins that the user may have installed.
 # Each key in the dictionary is the name of an installed plugin and its value is a dictionary of settings.

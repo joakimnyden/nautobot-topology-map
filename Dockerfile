@@ -1,5 +1,5 @@
-ARG NAUTOBOT_VER="3.0.8"
-ARG PYTHON_VER="3.11"
+ARG NAUTOBOT_VER="3.1.0"
+ARG PYTHON_VER="3.14"
 
 FROM ghcr.io/nautobot/nautobot:${NAUTOBOT_VER}-py${PYTHON_VER} as nautobot-base
 
@@ -83,18 +83,21 @@ RUN pip install --no-cache-dir uv
 COPY nautobot_topology /source/nautobot_topology
 COPY pyproject.toml /source
 COPY README.md /source
+COPY scripts /source/scripts
 WORKDIR /source
 
 # Copy built frontend assets from Stage 1
 COPY --from=frontend-builder /source/nautobot_topology/static/nautobot_topology/ /source/nautobot_topology/static/nautobot_topology/
 
-# Install the plugin using uv
-RUN uv pip install --system -e .
+# Install the plugin with dev and test dependencies
+RUN uv pip install --system -e ".[dev,test]"
 
 # build the plugin
 RUN cd /source && \
     uv build && \
-    uv export -o /tmp/dist/requirements.txt && \
+    # We don't really need to export requirements if we install directly, 
+    # but keeping it for consistency if needed.
+    uv export --extra dev --extra test -o /tmp/dist/requirements.txt && \
     cp dist/*.whl /tmp/dist
 
 USER nautobot
@@ -113,10 +116,11 @@ COPY --from=builder /usr/local/lib/python${PYTHON_VER}/site-packages /usr/local/
 COPY --from=builder /usr/local/bin /usr/local/bin
 # COPY --from=frontend-builder /source/nautobot_topology/static/nautobot_topology/ /opt/nautobot/nautobot_topology/static/nautobot_topology/
 COPY nautobot_config.py /opt/nautobot/nautobot_config.py
+COPY --from=builder /source/scripts /opt/nautobot/scripts
 # COPY nautobot_topology /opt/nautobot/nautobot_topology
 
-# Install the plugin and its dependencies
-RUN uv pip install --system /tmp/dist/*.whl
+# Install the plugin and its dependencies including extras
+RUN uv pip install --system /tmp/dist/*.whl pytest pytest-django pytest-cov coverage
 
 RUN nautobot-server collectstatic --no-input
 
