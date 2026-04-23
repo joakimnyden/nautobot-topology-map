@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Node, Edge, useReactFlow } from '@xyflow/react';
-import { getLayoutedElements } from '../utils/topology-utils';
+import { getLayoutedElements, getRoleRank, getPartnerBaseName } from '../utils/topology-utils';
+
 interface UseTopologyLayoutProps {
   siteId: string;
   topoNodes: Node[];
@@ -65,24 +66,69 @@ export function useTopologyLayout({ siteId, topoNodes, topoEdges }: UseTopologyL
       } else {
         // No saved layout, compute new one
         if (topoNodes.length > 500) {
-          // High-density Grid Layout implementation
+          // Structured Rank Grid Layout for high-density maps
           const groupNodes = topoNodes.filter(n => n.type === 'aggregate' || n.type === 'apStack');
-          const standardNodes = topoNodes.filter(n => n.type !== 'aggregate' && n.type !== 'apStack');
-          const cols = Math.ceil(Math.sqrt(standardNodes.length || 1));
+          const standardNodes = [...topoNodes.filter(n => n.type !== 'aggregate' && n.type !== 'apStack')];
+          
+          // Group standard nodes by rank
+          const nodesByRank = new Map<number, Node[]>();
+          standardNodes.forEach(node => {
+            const rank = getRoleRank(node.data?.device?.role || '', node.type);
+            if (!nodesByRank.has(rank)) nodesByRank.set(rank, []);
+            nodesByRank.get(rank)!.push(node);
+          });
+
+          const sortedRanks = Array.from(nodesByRank.keys()).sort((a, b) => a - b);
           const spacing = 500;
+          let currentY = 0;
+          const mappedStandard: Node[] = [];
+
+          sortedRanks.forEach(rank => {
+            const rankNodes = nodesByRank.get(rank)!;
+            // Layout nodes in this rank in rows. 
+            const rankCols = Math.max(8, Math.ceil(Math.sqrt(rankNodes.length * 2))); 
+            
+            // Detect and group partners within this rank
+            const processedIds = new Set<string>();
+            const rowNodes: Node[] = [];
+
+            rankNodes.forEach(node => {
+                if (processedIds.has(node.id)) return;
+                
+                const baseName = getPartnerBaseName(node.data?.device?.name || '');
+                const partner = baseName ? rankNodes.find(n => n.id !== node.id && !processedIds.has(n.id) && getPartnerBaseName(n.data?.device?.name || '') === baseName) : null;
+                
+                if (partner) {
+                    rowNodes.push(node, partner);
+                    processedIds.add(node.id);
+                    processedIds.add(partner.id);
+                } else {
+                    rowNodes.push(node);
+                    processedIds.add(node.id);
+                }
+            });
+
+            rowNodes.forEach((node, i) => {
+              mappedStandard.push({
+                ...node,
+                position: {
+                  x: ((i % rankCols) - rankCols / 2) * spacing,
+                  y: currentY + Math.floor(i / rankCols) * spacing
+                }
+              });
+            });
+            
+            // Advance Y for the next rank
+            const rowsInRank = Math.ceil(rowNodes.length / rankCols);
+            currentY += rowsInRank * spacing + 800; // Extra padding between ranks
+          });
           
-          const mappedStandard = standardNodes.map((node, i) => ({
-            ...node,
-            position: {
-              x: ((i % cols) - cols / 2) * spacing,
-              y: (Math.floor(i / cols) - cols / 2) * spacing
-            }
-          }));
-          
+          const maxX = mappedStandard.length > 0 ? Math.max(...mappedStandard.map(n => n.position.x)) : 1000;
+
           const mappedGroups = groupNodes.map((node, i) => ({
             ...node,
             position: {
-              x: (cols / 2 + 2) * spacing,
+              x: maxX + 1000,
               y: (i - Math.floor(groupNodes.length / 2)) * 800
             }
           }));
@@ -90,18 +136,43 @@ export function useTopologyLayout({ siteId, topoNodes, topoEdges }: UseTopologyL
           finalNodes = [...mappedStandard, ...mappedGroups];
         } else {
           const { nodes: layoutedNodes } = getLayoutedElements(topoNodes, topoEdges, 'TB');
-          const maxX = Math.max(...layoutedNodes.filter(n => topoEdges.some(e => e.source === n.id || e.target === n.id)).map(n => n.position.x), 0);
-          const groupStartX = Math.max(800, maxX + 800);
-          let groupIdx = 0;
           
-          finalNodes = layoutedNodes.map(node => {
-            if ((node.type === 'aggregate' || node.type === 'apStack') && !topoEdges.some(e => e.source === node.id || e.target === node.id)) {
-              return { ...node, position: { x: groupStartX, y: (groupIdx++) * 800 } };
-            }
-            return node;
+          // Better handling of unconnected nodes: place them based on their rank
+          const connectedIds = new Set(topoEdges.flatMap(e => [e.source, e.target]));
+          const unconnectedNodes = layoutedNodes.filter(n => !connectedIds.has(n.id));
+          const connectedNodes = layoutedNodes.filter(n => connectedIds.has(n.id));
+
+          const maxX = Math.max(...connectedNodes.map(n => n.position.x), 800);
+          const maxY = Math.max(...connectedNodes.map(n => n.position.y), 800);
+          
+          // Group unconnected nodes by rank and place them neatly
+          const unconnectedByRank = new Map<number, Node[]>();
+          unconnectedNodes.forEach(node => {
+            const rank = getRoleRank(node.data?.device?.role || node.data?.name || '', node.type);
+            if (!unconnectedByRank.has(rank)) unconnectedByRank.set(rank, []);
+            unconnectedByRank.get(rank)!.push(node);
           });
+
+          const sortedRanks = Array.from(unconnectedByRank.keys()).sort((a, b) => a - b);
+          let currentY = 0;
+          const groupStartX = maxX + 800;
+
+          const positionedUnconnected: Node[] = [];
+          sortedRanks.forEach(rank => {
+            const nodesInRank = unconnectedByRank.get(rank)!;
+            nodesInRank.forEach((node, i) => {
+              positionedUnconnected.push({
+                ...node,
+                position: { x: groupStartX + (i % 3) * 400, y: currentY + Math.floor(i / 3) * 400 }
+              });
+            });
+            currentY += Math.ceil(nodesInRank.length / 3) * 400 + 200;
+          });
+
+          finalNodes = [...connectedNodes, ...positionedUnconnected];
         }
       }
+
       setNodes(finalNodes);
       setEdges(topoEdges);
       setIsLayoutApplied(true);
@@ -165,7 +236,8 @@ export function useTopologyLayout({ siteId, topoNodes, topoEdges }: UseTopologyL
   };
   const recalculateLayout = useCallback(() => {
     if (nodes.length > 500) {
-      alert('Automatic layout is disabled for datasets > 500 nodes to prevent browser hanging.');
+      setNotification({ text: 'Automatic layout disabled for > 500 nodes.', type: 'error' });
+      setTimeout(() => setNotification(null), 5000);
       return;
     }
     const { nodes: layoutedNodes } = getLayoutedElements(nodes, edges, 'TB', true);

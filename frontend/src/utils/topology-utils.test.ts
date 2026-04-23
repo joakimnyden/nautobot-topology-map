@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAP, formatInterfaceName, getLODLevel, formatThroughput } from './topology-utils';
+import { isAP, formatInterfaceName, getLODLevel, formatThroughput, getRoleRank, getLayoutedElements } from './topology-utils';
 describe('topology-utils', () => {
   describe('isAP', () => {
     it('should return true for access point roles', () => {
@@ -50,6 +50,41 @@ describe('topology-utils', () => {
     });
     it('should format Gbps correctly', () => {
       expect(formatThroughput(1500000000)).toBe('1.5 Gbps');
+    });
+  });
+  describe('getRoleRank', () => {
+    it('should return 0 for top-tier infrastructure', () => {
+      expect(getRoleRank('Firewall')).toBe(0);
+      expect(getRoleRank('Cloud')).toBe(0);
+    });
+    it('should return 2 for core switches', () => {
+      expect(getRoleRank('Core Switch')).toBe(2);
+    });
+    it('should return 8 for unknown roles', () => {
+      expect(getRoleRank('Unknown')).toBe(8);
+    });
+  });
+
+  describe('getLayoutedElements', () => {
+    it('should place high-rank nodes above low-rank nodes regardless of edge direction', () => {
+      const nodes = [
+        { id: 'router', data: { device: { role: 'Router' } }, position: { x: 0, y: 0 } },
+        { id: 'access', data: { device: { role: 'Access Switch' } }, position: { x: 0, y: 0 } }
+      ] as any;
+      
+      // Case 1: Edge from Router (Rank 1) to Access (Rank 4)
+      const edges1 = [{ id: 'e1', source: 'router', target: 'access' }] as any;
+      const { nodes: layouted1 } = getLayoutedElements(nodes, edges1);
+      const routerY1 = layouted1.find((n: any) => n.id === 'router').position.y;
+      const accessY1 = layouted1.find((n: any) => n.id === 'access').position.y;
+      expect(routerY1).toBeLessThan(accessY1);
+
+      // Case 2: Edge from Access (Rank 4) to Router (Rank 1) - should still place Router on top!
+      const edges2 = [{ id: 'e2', source: 'access', target: 'router' }] as any;
+      const { nodes: layouted2 } = getLayoutedElements(nodes, edges2);
+      const routerY2 = layouted2.find((n: any) => n.id === 'router').position.y;
+      const accessY2 = layouted2.find((n: any) => n.id === 'access').position.y;
+      expect(routerY2).toBeLessThan(accessY2);
     });
   });
 });

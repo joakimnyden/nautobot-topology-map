@@ -432,16 +432,26 @@ class TopologyViewSet(ViewSet):
     @action(detail=True, methods=['get', 'post'])
     def layout(self, request, pk=None):
         """Get or save the layout positions for nodes in a site."""
-        cache_key = f"nautobot_topology_layout_{pk}"
+        from ..models import TopologyLayout
         
+        try:
+            site = Location.objects.get(pk=pk)
+        except Location.DoesNotExist:
+            return Response({"status": "error", "message": "Site not found"}, status=404)
+
         if request.method == 'POST':
             # Store the raw layout dictionary (e.g. { "node_id": { "x": 1, "y": 2 }, ... })
             layout_data = request.data
-            cache.set(cache_key, layout_data, timeout=None)
+            TopologyLayout.objects.update_or_create(
+                site=site,
+                defaults={'layout_data': layout_data}
+            )
             return Response({"status": "success", "message": "Layout saved"})
             
-        layout_data = cache.get(cache_key)
-        if not layout_data:
+        try:
+            layout_obj = TopologyLayout.objects.get(site=site)
+            layout_data = layout_obj.layout_data
+        except TopologyLayout.DoesNotExist:
             layout_data = {"nodes": []}
             
         return Response({"status": "success", "data": layout_data})

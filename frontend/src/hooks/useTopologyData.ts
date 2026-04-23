@@ -206,12 +206,15 @@ export function useTopologyData({
         });
       }
     });
+    const edgeCounts = new Map<string, number>();
+    
     links.forEach(link => {
       const sId = String(link.source);
       const tId = String(link.target);
       const sourceDev = deviceMap.get(sId);
       const targetDev = deviceMap.get(tId);
       if (!sourceDev || !targetDev) return;
+      
       if (isAP(sourceDev.role)) {
         const parentId = apToParentMap.get(sId);
         if (parentId && (apStacksCount.get(parentId) || 0) > 1) return;
@@ -220,13 +223,22 @@ export function useTopologyData({
         const parentId = apToParentMap.get(tId);
         if (parentId && (apStacksCount.get(parentId) || 0) > 1) return;
       }
+
       if (links.length > 5000 && edges.length > 5000) return;
+
+      const pairKey = [sId, tId].sort().join('-');
+      const edgeIndex = edgeCounts.get(pairKey) || 0;
+      edgeCounts.set(pairKey, edgeIndex + 1);
+
       let isEdgeHighlighted = link.id === hoveredEdgeId;
       if (filterValue) {
         if (filterType === 'vlan') isEdgeHighlighted = isEdgeHighlighted || (link.vlan?.toString() === query);
         if (filterType === 'protocol') isEdgeHighlighted = isEdgeHighlighted || (link.protocol?.toLowerCase().includes(query));
       }
+      
       const isSelected = link.id === selectedEdgeId;
+      const isLogical = link.type === 'logical';
+      
       let label = link.protocol;
       if (showInterfaces || isSelected) {
         const sourcePort = link.isPortChannel && link.lagMembers
@@ -239,14 +251,24 @@ export function useTopologyData({
           ? `${sourcePort} ↔ ${targetPort}${link.nautobotUrl ? ' 🔗' : ''}`
           : `${formatInterfaceName(link.sourceInterface || '')} ↔ ${formatInterfaceName(link.targetInterface || '')}`;
       }
+
+      // Use different edge types to prevent overlap
+      // Multi-edges or logical edges get a bezier curve
+      const useBezier = isLogical || edgeIndex > 0;
+      const edgeType = useBezier ? 'bezier' : (link.isPortChannel ? 'straight' : (links.length > 100 ? 'straight' : 'smoothstep'));
+
       edges.push({
         id: link.id,
-        source: link.source as string,
-        target: link.target as string,
-        type: link.isPortChannel ? 'straight' : (links.length > 100 ? 'straight' : 'smoothstep'),
+        source: sId,
+        target: tId,
+        type: edgeType,
         hidden: links.length > 8000 && zoom < 0.2,
         animated: (link.id === hoveredEdgeId || isSelected || (isEdgeHighlighted && links.length < 500)) && !link.isPortChannel,
         label: links.length > 2000 ? undefined : label,
+        data: {
+          // Curvature logic: alternate sides and increase depth
+          curvature: isLogical ? (edgeIndex % 2 === 0 ? 0.35 : -0.35) : (edgeIndex === 0 ? 0 : (edgeIndex % 2 === 0 ? 0.2 : -0.2))
+        },
         labelStyle: {
           fill: isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : (link.type === 'physical' ? '#94a3b8' : (link.type === 'port-channel' ? '#a5b4fc' : '#10b981'))),
           fontSize: (showInterfaces || isSelected) ? 8 : 10,
@@ -260,13 +282,14 @@ export function useTopologyData({
             : (isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : (link.type === 'physical' ? '#475569' : (link.type === 'port-channel' ? '#818cf8' : '#10b981')))),
           strokeWidth: link.isPortChannel ? 5 : (isEdgeHighlighted ? 5 : (isSelected ? 4 : (link.type === 'physical' ? 2 : 1.5))),
           opacity: (filterValue || selectedEdgeId) && !isEdgeHighlighted && !isSelected ? 0.4 : 1,
-          strokeDasharray: link.type === 'logical' ? '5,5' : 'none',
+          strokeDasharray: isLogical ? '8,4' : 'none',
           filter: (link.type === 'port-channel' || isEdgeHighlighted || isSelected) 
             ? `drop-shadow(0 0 6px ${isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : '#818cf8')})` 
             : 'none',
         },
       });
     });
+
     return edges;
   }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom]);
   return { validDevices, deviceMap, linkMap, linksByDevice, topoNodes, topoEdges };

@@ -23,6 +23,7 @@ import { useTopologyMetrics } from '../hooks/useTopologyMetrics';
 import { DeviceNode } from './topology/DeviceNode';
 import { APStackNode } from './topology/APStackNode';
 import { GroupNode } from './topology/GroupNode';
+import { TopologyEdge } from './topology/TopologyEdge';
 import { EdgeTooltip } from './topology/EdgeTooltip';
 import { DeviceTooltip } from './topology/DeviceTooltip';
 import { ControlPanel } from './topology/ControlPanel';
@@ -39,6 +40,14 @@ const nodeTypes = {
   apStack: APStackNode,
   aggregate: GroupNode,
 };
+
+const edgeTypes = {
+  topology: TopologyEdge,
+  bezier: TopologyEdge,
+  smoothstep: TopologyEdge,
+  straight: TopologyEdge,
+};
+
 
 interface DeviceFlowProps {
   devices: Device[];
@@ -290,7 +299,9 @@ export default function DeviceFlow({
           setTimeout(() => instance.fitView({ padding: 0.2, minZoom: 0.001 }), 300);
         }}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         connectionLineType={ConnectionLineType.SmoothStep}
+
         fitView
         fitViewOptions={{ padding: 0.2, minZoom: 0.001 }}
         minZoom={0.001}
