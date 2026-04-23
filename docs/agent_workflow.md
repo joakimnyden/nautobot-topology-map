@@ -54,4 +54,5 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 
 ## 4. Testing Standards (80% Coverage Required)
 - **Backend**: Execute via `uv run invoke test`. Follow Nautobot's official API testing framework standards.
+  - **Permissions**: When testing Nautobot `ObjectPermission`, be aware that DRF's `force_authenticate` or Django's `force_login` may not always pick up model-level permission changes in the same test session without a user re-fetch/re-authentication.
 - **Frontend**: Execute via `npm run test --prefix frontend` (Vitest + React Testing Library). Ensure custom hooks have dedicated `.test.ts` files (use `renderHook`).

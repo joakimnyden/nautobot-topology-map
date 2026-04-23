@@ -8,12 +8,25 @@ from nautobot.dcim.models import Device, Location, Cable
 from nautobot.ipam.models import VLAN, Prefix
 from .serializers import DeviceSerializer
 
+from nautobot.core.api.views import ModelViewSet
+from rest_framework.permissions import BasePermission
+
 def get_locations_for_site(site):
     """Get all descendant locations including self using Nautobot's native tree manager."""
     # Convert to list of IDs to avoid CTE issues in subqueries (Postgres/Nautobot 2.x)
     return list(site.descendants(include_self=True).values_list('id', flat=True))
+
+class TopologyPermission(BasePermission):
+    """Custom permission class for Topology Map."""
+    def has_permission(self, request, view):
+        if request.user and request.user.is_superuser:
+            return True
+        if request.method == "GET":
+            return request.user.has_perm("nautobot_topology.view_topologylayout")
+        return request.user.has_perm("nautobot_topology.change_topologylayout")
+
 class TopologyViewSet(ViewSet):
-    permission_classes = [] # Allow all for now, or handle in tests
+    permission_classes = [TopologyPermission]
     queryset = Location.objects.filter(location_type__name="Site")
     def list(self, request):
         import random
