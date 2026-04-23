@@ -52,3 +52,15 @@ def format(context):
     """Run code formatters."""
     print("Formatting code...")
     context.run("docker-compose exec -T nautobot black nautobot_topology", pty=False, in_stream=False)
+
+@task
+def migrate(context):
+    """Run Nautobot database migrations."""
+    print("Applying database migrations...")
+    context.run("docker-compose exec -T nautobot nautobot-server migrate", pty=False, in_stream=False)
+
+@task
+def post_upgrade(context):
+    """Run Nautobot post_upgrade commands (migrations + collectstatic)."""
+    print("Running post_upgrade...")
+    context.run("docker-compose exec -T nautobot nautobot-server post_upgrade", pty=False, in_stream=False)

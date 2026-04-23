@@ -51,7 +51,7 @@ To install the plugin from source in a Nautobot environment:
    ]
    ```
 
-5. **Finalize the installation**:
+5. **Finalize the installation** (Applies database migrations and collects static assets):
    ```bash
    nautobot-server post_upgrade
    ```
@@ -97,7 +97,11 @@ To test the plugin within a live Nautobot instance:
    invoke build
    invoke start
    ```
-2. The environment will be available at `http://localhost:8080`.
+2. **Apply database migrations**:
+   ```bash
+   invoke migrate
+   ```
+3. The environment will be available at `http://localhost:8080`.
 
 ## Project Structure
 
