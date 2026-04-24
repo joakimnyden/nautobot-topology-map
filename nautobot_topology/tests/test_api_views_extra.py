@@ -7,7 +7,8 @@ import nautobot.dcim.models as dcim_models
 class TopologyViewSetExtraTest(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.view = TopologyViewSet.as_view({'get': 'retrieve', 'get': 'list', 'get': 'metrics'})
+        self.retrieve_view = TopologyViewSet.as_view({'get': 'retrieve'})
+        self.list_view = TopologyViewSet.as_view({'get': 'list'})
 
     @override_settings(PLUGINS_CONFIG={'nautobot_topology': {
         'allowed_statuses': ['Active'],
@@ -88,8 +89,13 @@ class TopologyViewSetExtraTest(TestCase):
         mock_iface_filter.return_value.values.return_value = []
         mock_fp_filter.return_value.values.return_value = []
 
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User(username='testuser', is_superuser=True)
+        from rest_framework.test import force_authenticate
         request = self.factory.get('/api/plugins/nautobot_topology/topology/123/')
-        response = TopologyViewSet.as_view({'get': 'retrieve'})(request, pk='123')
+        force_authenticate(request, user=user)
+        response = self.retrieve_view(request, pk='123')
         
         self.assertEqual(response.status_code, 200)
         data = response.data['data']
@@ -116,6 +122,11 @@ class TopologyViewSetExtraTest(TestCase):
         mock_qs.select_related.return_value.annotate.return_value = [site1, site2]
         mock_filter.return_value = mock_qs
         
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User(username='testuser', is_superuser=True)
+        from rest_framework.test import force_authenticate
         request = self.factory.get('/api/plugins/nautobot_topology/topology/')
-        response = TopologyViewSet.as_view({'get': 'list'})(request)
+        force_authenticate(request, user=user)
+        response = self.list_view(request)
         self.assertEqual(len(response.data['data']['nodes']), 1)

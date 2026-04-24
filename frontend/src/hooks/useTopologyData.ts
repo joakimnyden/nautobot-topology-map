@@ -17,6 +17,7 @@ interface UseTopologyDataProps {
   linkMetrics: Record<string, any>;
   zoom: number;
   onDeviceHover: (id: string | null, pos?: { x: number, y: number }) => void;
+  apRoleName?: string;
 }
 export function useTopologyData({
   devices,
@@ -33,6 +34,7 @@ export function useTopologyData({
   linkMetrics,
   zoom,
   onDeviceHover,
+  apRoleName,
 }: UseTopologyDataProps) {
   // 1. Pre-process datasets for efficient O(1) lookups
   const { validDevices, deviceMap, linkMap, linksByDevice } = useMemo(() => {
@@ -85,8 +87,8 @@ export function useTopologyData({
       });
     });
     // AP Stacking Logic
-    const apNodesList = apiDevices.filter(d => isAP(d.role));
-    const nonAPNodesList = apiDevices.filter(d => !isAP(d.role));
+    const apNodesList = apiDevices.filter(d => isAP(d.role, apRoleName));
+    const nonAPNodesList = apiDevices.filter(d => !isAP(d.role, apRoleName));
     
     const apStackGroups = new Map<string, Device[]>();
     const unconAPs: Device[] = [];
@@ -97,7 +99,7 @@ export function useTopologyData({
       for (const l of linksToAP) {
         const otherId = String(l.source) === ap.id ? String(l.target) : String(l.source);
         const otherDevice = deviceMap.get(otherId);
-        if (otherDevice && !isAP(otherDevice.role)) {
+        if (otherDevice && !isAP(otherDevice.role, apRoleName)) {
           parentId = otherId;
           break;
         }
@@ -168,12 +170,12 @@ export function useTopologyData({
       });
     }
     return nodes;
-  }, [validDevices, devices, links, filterType, filterValue, iconMode, iconStyle, lod, deviceMap, linksByDevice, onDeviceHover]);
+  }, [validDevices, devices, links, filterType, filterValue, iconMode, iconStyle, lod, deviceMap, linksByDevice, onDeviceHover, apRoleName]);
   // topoEdges calculation
   const topoEdges = useMemo(() => {
     const query = filterValue.toLowerCase();
     const edges: Edge[] = [];
-    const apDevices = validDevices.filter(d => !d.type || d.type === 'device').filter(d => isAP(d.role));
+    const apDevices = validDevices.filter(d => !d.type || d.type === 'device').filter(d => isAP(d.role, apRoleName));
     const apToParentMap = new Map<string, string>();
     
     apDevices.forEach(ap => {
@@ -181,7 +183,7 @@ export function useTopologyData({
       for (const l of linksToAP) {
         const otherId = String(l.source) === ap.id ? String(l.target) : String(l.source);
         const otherDevice = deviceMap.get(otherId);
-        if (otherDevice && !isAP(otherDevice.role)) {
+        if (otherDevice && !isAP(otherDevice.role, apRoleName)) {
           apToParentMap.set(ap.id, otherId);
           break;
         }
@@ -215,11 +217,11 @@ export function useTopologyData({
       const targetDev = deviceMap.get(tId);
       if (!sourceDev || !targetDev) return;
       
-      if (isAP(sourceDev.role)) {
+      if (isAP(sourceDev.role, apRoleName)) {
         const parentId = apToParentMap.get(sId);
         if (parentId && (apStacksCount.get(parentId) || 0) > 1) return;
       }
-      if (isAP(targetDev.role)) {
+      if (isAP(targetDev.role, apRoleName)) {
         const parentId = apToParentMap.get(tId);
         if (parentId && (apStacksCount.get(parentId) || 0) > 1) return;
       }
@@ -291,6 +293,6 @@ export function useTopologyData({
     });
 
     return edges;
-  }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom]);
+  }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom, apRoleName]);
   return { validDevices, deviceMap, linkMap, linksByDevice, topoNodes, topoEdges };
 }

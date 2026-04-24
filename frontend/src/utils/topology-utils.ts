@@ -17,7 +17,8 @@ export const getLODLevel = (zoom: number) => {
   if (zoom > LOD_LOW) return 1;  // Minimal
   return 0;                      // Micro (dots)
 };
-export const isAP = (role: string) => {
+export const isAP = (role: string, apRoleName?: string) => {
+  if (apRoleName) return role === apRoleName;
   const r = role.toLowerCase();
   return r.includes('access') && r.includes('point');
 };
