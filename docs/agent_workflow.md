@@ -44,6 +44,7 @@ Follow these steps strictly for *every* task to ensure consistency and stability
   - Use structured rank grids for datasets > 500 nodes instead of Dagre.
   - Separate topology processing (`topoNodes`, `topoEdges`) from high-frequency interactive updates using `useEffect` reconciliation.
   - Use React Flow's `onlyRenderVisibleElements={true}` and implement Level of Detail (LOD) zoom thresholds to cull DOM nodes.
+- **Edge Routing**: To prevent links from passing through node boxes, use a 4-handle system (Top, Bottom, Left, Right) with IDs like `s-t`, `t-t`. `useTopologyLayout` must dynamically assign `sourceHandle` and `targetHandle` based on relative node positions after layout calculation (e.g., primarily horizontal links use Left/Right handles).
 
 ### Backend & Database (Nautobot 3.1.1)
 - **Persistence**: Topology node positions are stored in the `TopologyLayout` database model (O2O with `Location`). The API `/layout/` endpoint manages this.

@@ -173,12 +173,80 @@ export function useTopologyLayout({ siteId, topoNodes, topoEdges }: UseTopologyL
         }
       }
 
-      setNodes(finalNodes);
-      setEdges(topoEdges);
+      const positionedNodes = finalNodes;
+      const nodesMap = new Map(positionedNodes.map(n => [n.id, n]));
+
+      const updatedEdges = topoEdges.map(edge => {
+        const sourceNode = nodesMap.get(edge.source);
+        const targetNode = nodesMap.get(edge.target);
+        
+        if (!sourceNode || !targetNode) return edge;
+
+        const sx = sourceNode.position.x;
+        const sy = sourceNode.position.y;
+        const tx = targetNode.position.x;
+        const ty = targetNode.position.y;
+
+        const dx = tx - sx;
+        const dy = ty - sy;
+
+        let sourceHandle = 's-b';
+        let targetHandle = 't-t';
+
+        if (Math.abs(dx) > Math.abs(dy) * 1.5) {
+          // Primarily horizontal
+          if (dx > 0) {
+            sourceHandle = 's-r';
+            targetHandle = 't-l';
+          } else {
+            sourceHandle = 's-l';
+            targetHandle = 't-r';
+          }
+        } else {
+          // Primarily vertical
+          if (dy > 0) {
+            sourceHandle = 's-b';
+            targetHandle = 't-t';
+          } else {
+            sourceHandle = 's-t';
+            targetHandle = 't-b';
+          }
+        }
+
+        return {
+          ...edge,
+          sourceHandle,
+          targetHandle
+        };
+      });
+
+      setNodes(positionedNodes);
+      setEdges(updatedEdges);
       setIsLayoutApplied(true);
     } else {
       // Periodic data updates (keep positions as is, update data only)
-      setEdges(topoEdges);
+      const nodesMap = new Map(nodes.map(n => [n.id, n]));
+      const updatedEdges = topoEdges.map(edge => {
+        const sourceNode = nodesMap.get(edge.source);
+        const targetNode = nodesMap.get(edge.target);
+        if (!sourceNode || !targetNode) return edge;
+        
+        const dx = targetNode.position.x - sourceNode.position.x;
+        const dy = targetNode.position.y - sourceNode.position.y;
+        
+        let sourceHandle = 's-b';
+        let targetHandle = 't-t';
+        if (Math.abs(dx) > Math.abs(dy) * 1.5) {
+          if (dx > 0) { sourceHandle = 's-r'; targetHandle = 't-l'; }
+          else { sourceHandle = 's-l'; targetHandle = 't-r'; }
+        } else {
+          if (dy > 0) { sourceHandle = 's-b'; targetHandle = 't-t'; }
+          else { sourceHandle = 's-t'; targetHandle = 't-b'; }
+        }
+        return { ...edge, sourceHandle, targetHandle };
+      });
+      
+      setEdges(updatedEdges);
       setNodes(currentNodes => {
         const dataMap = new Map(topoNodes.map(n => [n.id, n.data]));
         let hasChanges = false;
@@ -241,7 +309,30 @@ export function useTopologyLayout({ siteId, topoNodes, topoEdges }: UseTopologyL
       return;
     }
     const { nodes: layoutedNodes } = getLayoutedElements(nodes, edges, 'TB', true);
+    
+    const nodesMap = new Map(layoutedNodes.map(n => [n.id, n]));
+    const updatedEdges = edges.map(edge => {
+      const sourceNode = nodesMap.get(edge.source);
+      const targetNode = nodesMap.get(edge.target);
+      if (!sourceNode || !targetNode) return edge;
+      
+      const dx = targetNode.position.x - sourceNode.position.x;
+      const dy = targetNode.position.y - sourceNode.position.y;
+      
+      let sourceHandle = 's-b';
+      let targetHandle = 't-t';
+      if (Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx > 0) { sourceHandle = 's-r'; targetHandle = 't-l'; }
+        else { sourceHandle = 's-l'; targetHandle = 't-r'; }
+      } else {
+        if (dy > 0) { sourceHandle = 's-b'; targetHandle = 't-t'; }
+        else { sourceHandle = 's-t'; targetHandle = 't-b'; }
+      }
+      return { ...edge, sourceHandle, targetHandle };
+    });
+
     setNodes([...layoutedNodes]);
+    setEdges(updatedEdges);
   }, [nodes, edges]);
   const toggleLock = async () => {
     if (!isLocked) {
