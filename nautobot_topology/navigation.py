@@ -10,7 +10,7 @@ menu_items = (
                     NavMenuItem(
                         link="plugins:nautobot_topology:dashboard",
                         name="Topology Map",
-                        permissions=["nautobot_topology.view_topology"],
+                        permissions=["nautobot_topology.view_topologylayout"],
                     ),
                 ),
             ),

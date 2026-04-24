@@ -8,10 +8,21 @@ node_modules/
 build/
 dist/
 *.egg-info/
-
+.local/
+.cache/
+.nautobot_data/
+static/
+scripts/
+git/
+jobs/
+media/
 # Tests and Coverage
 coverage/
 .pytest_cache/
+.cache/
+.python_history
+scratch/
+.agents/
 .tox/
 *.log
 

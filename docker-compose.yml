@@ -50,6 +50,8 @@ services:
     env_file:
       - ".env.cred.example"
       - ".env.local.example"
+    volumes:
+      - "./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology"
     command: "nautobot-server runserver 0.0.0.0:8080"
 
   celery:
@@ -70,6 +72,8 @@ services:
     env_file:
       - ".env.cred.example"
       - ".env.local.example"
+    volumes:
+      - "./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology"
     command: "nautobot-server celery worker -l INFO"
 
 volumes:

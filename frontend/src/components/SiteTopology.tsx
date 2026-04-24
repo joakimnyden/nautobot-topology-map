@@ -5,8 +5,7 @@ import { ChevronLeft, Share2, Download, Settings, GitGraph, Plus, Minus, RotateC
 import { ROLE_ICON_MAPPING } from '../config/topologyConfig';
 import { ReactFlowProvider } from '@xyflow/react';
 import DeviceFlow from './DeviceFlow';
-import { toPng as toPng } from 'html-to-image';
-
+import { toPng } from 'html-to-image';
 interface SiteTopologyProps {
   site: Site;
   onBack: () => void;
@@ -21,6 +20,7 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
   const [prometheusEnabled, setPrometheusEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const topologyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,6 +49,21 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
 
   return (
     <div ref={topologyRef} className="relative w-full h-full bg-[#0f172a] rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+      {/* Export Status Toast */}
+      <AnimatePresence>
+        {isExporting && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[1200] px-6 py-3 bg-blue-600/20 backdrop-blur-xl border border-blue-500/30 rounded-2xl flex items-center gap-3 shadow-2xl"
+          >
+            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+            <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Generating Snapshot...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="absolute top-8 left-8 right-8 z-10 flex justify-between items-start pointer-events-none">
         <div className="pointer-events-auto">
@@ -78,21 +93,29 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
               <Share2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
             </button>
             <button
+              disabled={isExporting}
               onClick={() => {
-                if (topologyRef.current) {
-                  toPng(topologyRef.current, { backgroundColor: '#0f172a' })
-                    .then(dataUrl => {
-                      const a = document.createElement('a');
-                      a.href = dataUrl;
-                      a.download = `topology-${site.name || 'export'}.png`;
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                    })
-                    .catch(err => console.error('Failed to export PNG:', err));
-                }
+                if (!topologyRef.current || isExporting) return;
+                setIsExporting(true);
+                
+                toPng(topologyRef.current, { 
+                  backgroundColor: '#0f172a',
+                  cacheBust: true,
+                })
+                .then(dataUrl => {
+                  const cleanName = (site.name || 'topology').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                  const a = document.createElement('a');
+                  a.href = dataUrl;
+                  a.download = `${cleanName}.png`;
+                  a.click();
+                })
+                .catch(err => {
+                  console.error('Export error:', err);
+                  alert('Export failed. This usually happens with very large maps or security restrictions on icons.');
+                })
+                .finally(() => setIsExporting(false));
               }}
-              className="p-3 bg-slate-800/80 backdrop-blur-md hover:bg-slate-700/80 rounded-2xl border border-slate-700/50 shadow-xl transition-all"
+              className="p-3 bg-slate-800/80 backdrop-blur-md hover:bg-slate-700/80 rounded-2xl border border-slate-700/50 shadow-xl transition-all disabled:opacity-50"
               title="Download as PNG"
             >
               <Download className="w-4 h-4 text-slate-400 hover:text-slate-200" />
