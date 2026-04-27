@@ -42,7 +42,7 @@ Follow these steps strictly for *every* task to ensure consistency and stability
   - **Cable Discovery**: 
     - **Recursive Fetching**: Uses `/api/plugins/nautobot_topology/topology/<id>/devices/` to find all devices in Site/Location hierarchy (recursive).
     - **Scannable Filter**: Devices without a Primary IP are filtered out by default in the frontend.
-    - **Simulator**: Controlled via `discovery_simulator_enabled` in `nautobot_config.py` (PLUGINS_CONFIG). Currently DISABLED.
+    - **Simulator**: Frontend-only simulation mode enabled via `discovery_simulator_enabled` in `nautobot_config.py`. Does not require `mock-switch` backend.
 - **Performance (10k+ nodes)**:
   - Pre-calculate `deviceMap` and `linkMap` in `useMemo` (O(1) lookups). NEVER use `.find()` on hot paths.
   - Use structured rank grids for datasets > 500 nodes instead of Dagre.

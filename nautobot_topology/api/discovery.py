@@ -72,16 +72,11 @@ def discover_neighbors(device_id):
     username, password, secret = get_device_credentials(device)
     device_type = guess_netmiko_device_type(device)
     
-    # For testing purposes with the mock switch
-    port = 22
-    if device.name.lower().startswith("mock") or ip_address == "172.18.0.6":
-        port = 2222
-        device_type = "cisco_ios"
-        
+    # Connection parameters
     connection_params = {
         "device_type": device_type,
         "host": ip_address,
-        "port": port,
+        "port": 22,
         "username": username,
         "password": password,
         "secret": secret or password,

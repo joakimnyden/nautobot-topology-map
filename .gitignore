@@ -42,3 +42,10 @@ __pycache__/
 # Frontend built assets (ignored because they are generated from 'frontend/')
 nautobot_topology/static/nautobot_topology/*
 !nautobot_topology/static/nautobot_topology/.gitkeep
+
+# Local and Agent files
+.claude/
+.cursorrules
+AGENTS.md
+LEAN-CTX.md
+frontend/build_log.txt
