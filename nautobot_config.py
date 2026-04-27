@@ -47,6 +47,7 @@ PLUGINS_CONFIG = {
         "prometheus_url": "mock",
         "topology_style": "fancy",
         "cache_timeout": 300,
+        "discovery_simulator_enabled": False,
     },
 }
 

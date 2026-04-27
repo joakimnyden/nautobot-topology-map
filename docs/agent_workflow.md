@@ -34,11 +34,15 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 ## 3. Architecture & Implementation Guidelines
 
 ### Frontend (UI/UX & Performance)
-- **Aesthetics**: Premium glassmorphic styling (`slate-900/40`, `backdrop-blur-md`), minimalist typographic controls (pipe-separated `|`), and Framer Motion Toast notifications. High-fidelity PNG exports exclude UI controls (`pointer-events-auto`).
+- **Aesthetics**: Premium Catppuccin Macchiato palette (`ctp-crust`, `ctp-mantle`, `ctp-surface0/1`), minimalist typographic controls (pipe-separated `|`), and Framer Motion Toast notifications. High-fidelity PNG exports exclude UI controls (`pointer-events-auto`).
 - **Interactivity**: Double-clicking nodes/links navigates directly to their Nautobot detail pages. Layouts are saved via `/api/plugins/nautobot_topology/topology/<pk>/layout/`.
 - **Data Discovery**: 
   - **BGP**: Discover peerings via `nautobot-bgp-models` (use `source_ip` to identify endpoints).
   - **LAG**: Reconstruct physical links into `port-channel` entities in frontend if LAG membership detected.
+  - **Cable Discovery**: 
+    - **Recursive Fetching**: Uses `/api/plugins/nautobot_topology/topology/<id>/devices/` to find all devices in Site/Location hierarchy (recursive).
+    - **Scannable Filter**: Devices without a Primary IP are filtered out by default in the frontend.
+    - **Simulator**: Controlled via `discovery_simulator_enabled` in `nautobot_config.py` (PLUGINS_CONFIG). Currently DISABLED.
 - **Performance (10k+ nodes)**:
   - Pre-calculate `deviceMap` and `linkMap` in `useMemo` (O(1) lookups). NEVER use `.find()` on hot paths.
   - Use structured rank grids for datasets > 500 nodes instead of Dagre.

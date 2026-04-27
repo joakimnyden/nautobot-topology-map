@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from nautobot.dcim.models import Device, Location, Cable
 from nautobot.ipam.models import VLAN, Prefix
 from .serializers import DeviceSerializer
+from .discovery import discover_neighbors
+from nautobot.extras.models import Status
 
 from nautobot.core.api.views import ModelViewSet
 from rest_framework.permissions import BasePermission
@@ -21,6 +23,11 @@ class TopologyPermission(BasePermission):
     def has_permission(self, request, view):
         if request.user and request.user.is_superuser:
             return True
+        
+        # Check specific actions for discovery
+        if view.action in ["discover_cables", "import_cables"]:
+            return request.user.has_perm("nautobot_topology.run_cablediscovery")
+
         if request.method == "GET":
             return request.user.has_perm("nautobot_topology.view_topologylayout")
         return request.user.has_perm("nautobot_topology.change_topologylayout")
@@ -476,3 +483,112 @@ class TopologyViewSet(ViewSet):
             layout_data = {"nodes": []}
             
         return Response({"status": "success", "data": layout_data})
+
+    @action(detail=True, methods=['get'])
+    def discover_cables(self, request, pk=None):
+        """Discover CDP/LLDP neighbors for a specific device."""
+        try:
+            device = Device.objects.get(pk=pk)
+        except Device.DoesNotExist:
+            return Response({"status": "error", "message": "Device not found"}, status=404)
+            
+        try:
+            results = discover_neighbors(device.id)
+            return Response({"status": "success", "data": results})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=500)
+
+    @action(detail=True, methods=['get'])
+    def devices(self, request, pk=None):
+        """Return all devices in a site and its sub-locations recursively."""
+        try:
+            site = Location.objects.get(pk=pk)
+        except Location.DoesNotExist:
+            return Response({"status": "error", "message": "Site not found"}, status=404)
+            
+        locations = get_locations_for_site(site)
+        devices = Device.objects.filter(location__in=locations).select_related(
+            'role', 'primary_ip4', 'primary_ip6', 'status', 'location'
+        )
+        
+        # Serialize simply for discovery
+        data = []
+        for d in devices:
+            primary_ip = ""
+            if d.primary_ip4:
+                primary_ip = str(d.primary_ip4.address.ip)
+            elif d.primary_ip6:
+                primary_ip = str(d.primary_ip6.address.ip)
+                
+            data.append({
+                "id": str(d.id),
+                "name": d.name,
+                "role": {"name": getattr(d.role, 'name', "Unknown")},
+                "status": {"name": getattr(d.status, 'name', "Unknown")},
+                "primary_ip4": {"display": primary_ip, "address": primary_ip} if primary_ip else None,
+                "location": {"name": d.location.name, "display": d.location.display}
+            })
+            
+        return Response({"status": "success", "results": data})
+
+    @action(detail=False, methods=['post'])
+    def import_cables(self, request):
+        """Import accepted cables into Nautobot."""
+        cables_data = request.data.get('cables', [])
+        created_cables = []
+        errors = []
+        
+        try:
+            active_status = Status.objects.get(name='Connected')
+        except Status.DoesNotExist:
+            active_status = Status.objects.filter(content_types__model='cable').first()
+            
+        for cable_spec in cables_data:
+            term_a_id = cable_spec.get('local_interface_id')
+            term_b_id = cable_spec.get('remote_interface_id')
+            
+            if not term_a_id or not term_b_id:
+                errors.append(f"Missing interface ID for {cable_spec}")
+                continue
+                
+            try:
+                from nautobot.dcim.models import Interface, FrontPort, RearPort, ConsolePort, ConsoleServerPort
+                
+                # Model mapping
+                model_map = {
+                    'interface': Interface,
+                    'frontport': FrontPort,
+                    'rearport': RearPort,
+                    'consoleport': ConsolePort,
+                    'consoleserverport': ConsoleServerPort
+                }
+                
+                local_type = cable_spec.get('local_interface_type', 'interface')
+                remote_type = cable_spec.get('remote_interface_type', 'interface')
+                
+                model_a = model_map.get(local_type, Interface)
+                model_b = model_map.get(remote_type, Interface)
+                
+                term_a = model_a.objects.get(id=term_a_id)
+                term_b = model_b.objects.get(id=term_b_id)
+                
+                if term_a.cable or term_b.cable:
+                    errors.append(f"Interface already has a cable: {term_a.name} or {term_b.name}")
+                    continue
+                    
+                cable = Cable(
+                    termination_a=term_a,
+                    termination_b=term_b,
+                    type=cable_spec.get('type', 'cat6a'),
+                    status=active_status
+                )
+                cable.validated_save()
+                created_cables.append(str(cable.id))
+            except Exception as e:
+                errors.append(f"Error creating cable between {term_a_id} and {term_b_id}: {str(e)}")
+                
+        return Response({
+            "status": "success" if not errors else "partial",
+            "created": len(created_cables),
+            "errors": errors
+        })
