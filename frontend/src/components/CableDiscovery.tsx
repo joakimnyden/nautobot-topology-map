@@ -76,7 +76,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
     };
 
     const url = selectedSiteId 
-      ? `/api/plugins/nautobot_topology/topology/${selectedSiteId}/devices/`
+      ? `/api/dcim/devices/?location=${selectedSiteId}&limit=1000`
       : `/api/dcim/devices/?limit=1000`;
 
     setIsDevicesLoading(true);
@@ -86,19 +86,30 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
         return res.json();
       })
       .then(data => {
+        console.log(`Discovery: Fetched ${data?.results?.length || 0} devices from ${url}`);
         if (data && data.results) {
-          // Permanently filter for scannable devices only
-          const scannable = data.results.filter((d: any) => {
-            const hasIp = !!(d.primary_ip || d.primary_ip4?.address || d.primary_ip4?.display);
-            return d.id === 'simulator' || hasIp;
+          // Robust filter for devices with IPs
+          const filtered = data.results.filter((d: any) => {
+            const hasIp = !!(
+              d.primary_ip || 
+              d.primary_ip4 || 
+              d.primary_ip6 || 
+              d.primary_ip_address || 
+              (d.primary_ip4 && d.primary_ip4.display) ||
+              (d.primary_ip6 && d.primary_ip6.display)
+            );
+            return hasIp;
           });
           
-          console.log(`Discovery: ${scannable.length} scannable devices found (from ${data.results.length} total)`);
+          console.log(`Discovery: ${filtered.length} devices remained after IP filtering`);
+          if (data.results.length > 0 && filtered.length === 0) {
+            console.warn('Discovery: Devices found but NONE had primary IPs. Sample device:', data.results[0]);
+          }
 
           if (window.NAUTOBOT_SIMULATOR_ENABLED) {
-            setDevices([testDevice, ...scannable]);
+            setDevices([testDevice, ...filtered]);
           } else {
-            setDevices(scannable);
+            setDevices(filtered);
           }
         } else {
           setDevices(window.NAUTOBOT_SIMULATOR_ENABLED ? [testDevice] : []);
@@ -242,6 +253,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
     setDiscoveryProgress({ current: 0, total: devices.length });
 
     let totalDiscovered = 0;
+    const allResults: any[] = [];
     for (let i = 0; i < devices.length; i++) {
       const device = devices[i];
       setDiscoveryProgress({ current: i + 1, total: devices.length });
@@ -250,6 +262,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
       const discovered = await handleDiscover(device.id);
       if (discovered) {
         totalDiscovered += discovered.length;
+        // handleDiscover already updates results state, but we return it for total count
       }
     }
 
@@ -293,33 +306,33 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
   };
 
   return (
-    <div className="w-full flex flex-col h-full bg-transparent text-ctp-text relative z-10">
+    <div className="w-full flex flex-col h-full bg-transparent text-slate-200 relative z-10">
       {/* Central Loading Overlay for initial device fetch */}
       {isDevicesLoading && devices.length === 0 && (
-        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-ctp-crust/60 backdrop-blur-sm rounded-3xl">
+        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm rounded-3xl">
           <div className="relative">
-            <div className="w-16 h-16 border-4 border-ctp-sky/20 border-t-ctp-sky rounded-full animate-spin"></div>
-            <Loader2 className="w-8 h-8 text-ctp-sky animate-pulse absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            <div className="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin"></div>
+            <Loader2 className="w-8 h-8 text-cyan-400 animate-pulse absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
           </div>
-          <p className="mt-4 text-ctp-sky font-medium animate-pulse uppercase tracking-widest text-xs">Loading devices...</p>
+          <p className="mt-4 text-cyan-400 font-medium animate-pulse uppercase tracking-widest text-xs">Loading devices...</p>
         </div>
       )}
 
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-2 text-ctp-subtext0 text-xs uppercase tracking-widest mb-2">
+          <div className="flex items-center gap-2 text-slate-500 text-xs uppercase tracking-widest mb-2">
             <Layout className="w-3 h-3" />
             <span>Plugin</span>
             <ChevronRight className="w-3 h-3" />
             <span>Topology</span>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-ctp-sky">Cable Discovery</span>
+            <span className="text-cyan-400">Cable Discovery</span>
           </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-ctp-subtext1 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
             Discovery Engine
           </h1>
-          <p className="text-ctp-subtext1 mt-1 max-w-2xl">
+          <p className="text-slate-400 mt-1 max-w-2xl">
             Audit physical connectivity using LLDP/CDP protocols. Map your network directly from switch logic to Nautobot.
           </p>
         </div>
@@ -327,7 +340,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
         {!isStandalone && onClose && (
           <button 
             onClick={onClose}
-            className="flex items-center gap-2 px-4 py-2 bg-ctp-mantle hover:bg-ctp-surface0 rounded-xl text-sm font-medium border border-ctp-surface1/50 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm font-medium border border-slate-700/50 transition-all active:scale-95"
           >
             Exit Discovery
           </button>
@@ -337,22 +350,22 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
       {/* Control Panel Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Site & Device Selection Card */}
-        <div className="lg:col-span-2 bg-ctp-mantle/40 backdrop-blur-md border border-ctp-surface1/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="lg:col-span-2 bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
             <Database className="w-24 h-24" />
           </div>
           
           <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-            <Search className="w-5 h-5 text-ctp-sky" />
+            <Search className="w-5 h-5 text-cyan-400" />
             Target Selection
           </h3>
 
           <div className="flex flex-col md:flex-row gap-4 items-end">
             {isStandalone && (
               <div className="flex-1 w-full">
-                <label className="block text-xs font-medium text-ctp-subtext0 mb-2 uppercase ml-1">Location</label>
+                <label className="block text-xs font-medium text-slate-500 mb-2 uppercase ml-1">Location</label>
                 <select 
-                  className="w-full bg-ctp-crust border border-ctp-surface1 rounded-xl px-4 py-3 text-ctp-text outline-none focus:ring-2 focus:ring-ctp-sky/20 focus:border-ctp-sky transition-all cursor-pointer relative z-30"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all cursor-pointer relative z-30"
                   value={selectedSiteId}
                   onChange={(e) => setSelectedSiteId(e.target.value)}
                 >
@@ -364,14 +377,16 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
             
             <div className="flex-1 w-full">
               <div className="flex justify-between items-center mb-2 px-1">
-                <label className="block text-xs font-medium text-ctp-subtext0 uppercase">Device</label>
-                  <span className="text-[10px] font-bold text-ctp-overlay1 bg-ctp-crust/50 px-2 py-0.5 rounded-full border border-ctp-surface1/50">
-                    {devices.filter(d => d.id !== 'simulator').length} FOUND
+                <label className="block text-xs font-medium text-slate-500 uppercase">Device</label>
+                {devices.length > 0 && (
+                  <span className="text-[10px] font-bold text-slate-600 bg-slate-900/50 px-2 py-0.5 rounded-full border border-slate-700/50">
+                    {devices.filter(d => d.id !== 'simulator-01').length} FOUND
                   </span>
+                )}
               </div>
               <div className="relative">
                 <select 
-                  className={`w-full bg-ctp-crust border border-ctp-surface1 rounded-xl px-4 py-3 text-ctp-text outline-none focus:ring-2 focus:ring-ctp-sky/20 focus:border-ctp-sky transition-all cursor-pointer relative z-30 ${isDevicesLoading ? 'opacity-50' : ''}`}
+                  className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all cursor-pointer relative z-30 ${isDevicesLoading ? 'opacity-50' : ''}`}
                   value={selectedDevice || ''}
                   onChange={(e) => setSelectedDevice(e.target.value)}
                   disabled={isDevicesLoading}
@@ -380,17 +395,16 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                   {devices.map(d => {
                     const label = d.display || d.name || 'Unknown Device';
                     const model = d.device_type?.model || d.device_type?.name || '';
-                    const ip = d.primary_ip || d.primary_ip4?.address || d.primary_ip4?.display || '';
                     return (
                       <option key={d.id} value={d.id}>
-                        {label}{model ? ` (${model})` : ''}{ip ? ` - ${ip}` : ''}
+                        {label}{model ? ` (${model})` : ''}
                       </option>
                     );
                   })}
                 </select>
                 {isDevicesLoading && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 z-40 pointer-events-none">
-                    <Loader2 className="w-4 h-4 animate-spin text-ctp-sky" />
+                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
                   </div>
                 )}
               </div>
@@ -402,8 +416,8 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                 disabled={!selectedDevice || isLoading}
                 className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg active:scale-95 pointer-events-auto ${
                   !selectedDevice || isLoading 
-                    ? 'bg-ctp-surface1/50 text-ctp-subtext0 cursor-not-allowed border border-ctp-surface1/50' 
-                    : 'bg-ctp-blue hover:bg-ctp-sapphire text-white shadow-ctp-blue/40 hover:shadow-ctp-blue/20'
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed border border-slate-700/50' 
+                    : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/40 hover:shadow-cyan-400/20'
                 }`}
               >
                 {isLoading && !isDiscoveringAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
@@ -415,8 +429,8 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                 disabled={(!selectedSiteId && !site?.id) || isLoading || devices.length === 0}
                 className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg active:scale-95 pointer-events-auto ${
                   (!selectedSiteId && !site?.id) || isLoading || devices.length === 0
-                    ? 'bg-ctp-surface1/50 text-ctp-subtext0 cursor-not-allowed border border-ctp-surface1/50' 
-                    : 'bg-ctp-green hover:bg-ctp-teal text-white shadow-ctp-green/40 hover:shadow-ctp-green/20'
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed border border-slate-700/50' 
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40 hover:shadow-emerald-400/20'
                 }`}
               >
                 {isDiscoveringAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
@@ -427,13 +441,13 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
 
           {isDiscoveringAll && (
             <div className="mt-8">
-              <div className="flex justify-between text-xs font-medium text-ctp-subtext0 mb-2">
+              <div className="flex justify-between text-xs font-medium text-slate-500 mb-2">
                 <span>Discovery Progress</span>
                 <span>{Math.round((discoveryProgress.current / discoveryProgress.total) * 100)}%</span>
               </div>
-              <div className="w-full bg-ctp-crust h-2.5 rounded-full overflow-hidden border border-ctp-surface1/50">
+              <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-700/50">
                 <div 
-                  className="h-full bg-gradient-to-r from-ctp-green to-ctp-teal transition-all duration-500 ease-out shadow-[0_0_10px_rgba(166,218,149,0.3)]"
+                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]"
                   style={{ width: `${(discoveryProgress.current / discoveryProgress.total) * 100}%` }}
                 />
               </div>
@@ -442,38 +456,38 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
         </div>
 
         {/* Status & Summary Card */}
-        <div className="bg-ctp-mantle/20 backdrop-blur-sm border border-ctp-surface1/50 rounded-3xl p-6 flex flex-col justify-between">
+        <div className="bg-slate-800/20 backdrop-blur-sm border border-slate-700/50 rounded-3xl p-6 flex flex-col justify-between">
           <div>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-ctp-subtext1">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-400">
               <Activity className="w-5 h-5" />
               Engine Log
             </h3>
             {error ? (
-              <div className="flex items-start gap-3 p-4 bg-ctp-red/10 border border-ctp-red/20 rounded-2xl text-ctp-red text-sm">
+              <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm">
                 <AlertCircle className="w-5 h-5 flex-shrink-0" />
                 <p>{error}</p>
               </div>
             ) : message ? (
-              <div className="flex items-start gap-3 p-4 bg-ctp-sky/10 border border-ctp-sky/20 rounded-2xl text-ctp-sky text-sm">
+              <div className="flex items-start gap-3 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl text-cyan-300 text-sm">
                 <Loader2 className={`w-5 h-5 flex-shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
                 <p>{message}</p>
               </div>
             ) : (
-              <div className="text-ctp-overlay1 text-sm italic py-4">
+              <div className="text-slate-500 text-sm italic py-4">
                 Waiting for scan initialization...
               </div>
             )}
           </div>
 
           {results.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-ctp-surface1/50">
+            <div className="mt-4 pt-4 border-t border-slate-700/50">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-ctp-subtext0">Total Results</span>
-                <span className="font-bold text-ctp-text">{results.length}</span>
+                <span className="text-slate-500">Total Results</span>
+                <span className="font-bold text-white">{results.length}</span>
               </div>
               <div className="flex justify-between items-center text-sm mt-2">
-                <span className="text-ctp-subtext0">Ready to Import</span>
-                <span className="font-bold text-ctp-green">{results.filter(r => r.is_matched && !r.cable_exists).length}</span>
+                <span className="text-slate-500">Ready to Import</span>
+                <span className="font-bold text-emerald-400">{results.filter(r => r.is_matched && !r.cable_exists).length}</span>
               </div>
             </div>
           )}
@@ -482,58 +496,58 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
 
       {/* Results Section */}
       {results.length > 0 && (
-        <div className="flex-1 min-h-0 bg-ctp-mantle/30 rounded-3xl border border-ctp-surface1/50 overflow-hidden flex flex-col shadow-inner">
+        <div className="flex-1 min-h-0 bg-slate-800/30 rounded-3xl border border-slate-700/50 overflow-hidden flex flex-col shadow-inner">
           <div className="overflow-auto flex-1 custom-scrollbar">
             <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-ctp-crust/50 backdrop-blur-xl sticky top-0 z-10 border-b border-ctp-surface1/50">
+              <thead className="bg-slate-900/50 backdrop-blur-xl sticky top-0 z-10 border-b border-slate-700/50">
                 <tr>
-                  <th className="px-6 py-4 font-bold text-ctp-subtext0 uppercase tracking-tighter text-xs">Local Interface</th>
-                  <th className="px-6 py-4 font-bold text-ctp-subtext0 uppercase tracking-tighter text-xs">Connection Path</th>
-                  <th className="px-6 py-4 font-bold text-ctp-subtext0 uppercase tracking-tighter text-xs">Remote Interface</th>
-                  <th className="px-6 py-4 font-bold text-ctp-subtext0 uppercase tracking-tighter text-xs">Protocol</th>
-                  <th className="px-6 py-4 font-bold text-ctp-subtext0 uppercase tracking-tighter text-xs">Media Type</th>
-                  <th className="px-6 py-4 font-bold text-ctp-subtext0 uppercase tracking-tighter text-xs text-right">Status</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-tighter text-xs">Local Interface</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-tighter text-xs">Connection Path</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-tighter text-xs">Remote Interface</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-tighter text-xs">Protocol</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-tighter text-xs">Media Type</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-tighter text-xs text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ctp-surface1/30">
+              <tbody className="divide-y divide-slate-700/30">
                 {results.map((r, i) => (
-                  <tr key={i} className={`hover:bg-ctp-surface0/30 transition-colors group ${r.cable_exists ? 'opacity-60' : ''}`}>
+                  <tr key={i} className={`hover:bg-white/5 transition-colors group ${r.cable_exists ? 'opacity-60' : ''}`}>
                     <td className="px-6 py-5">
                       <div className="flex flex-col">
-                        <span className="font-bold text-ctp-text">{r.local_interface}</span>
+                        <span className="font-bold text-slate-100">{r.local_interface}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-ctp-subtext1 opacity-60 uppercase font-bold tracking-widest">{r.local_interface_type || 'interface'}</span>
+                          <span className="text-[10px] text-slate-400 opacity-60 uppercase font-bold tracking-widest">{r.local_interface_type || 'interface'}</span>
                           {r.local_lag && (
-                            <span className="text-[10px] bg-ctp-lavender/10 text-ctp-lavender px-1.5 py-0.5 rounded border border-ctp-lavender/20 font-bold">
+                            <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 font-bold">
                               {r.local_lag}
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-ctp-subtext0 font-mono mt-1">{r.local_interface_id}</span>
+                        <span className="text-[10px] text-slate-500 font-mono mt-1">{r.local_interface_id}</span>
                       </div>
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
-                        <ArrowRight className="w-4 h-4 text-ctp-overlay1 group-hover:text-ctp-sky transition-colors" />
+                        <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-cyan-500 transition-colors" />
                         <div className="flex flex-col">
-                          <span className="font-bold text-ctp-subtext1">{r.remote_device}</span>
-                          <span className="text-[10px] text-ctp-subtext0">Peer Hardware</span>
+                          <span className="font-bold text-slate-300">{r.remote_device}</span>
+                          <span className="text-[10px] text-slate-500">Peer Hardware</span>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                       <span className="font-mono text-ctp-sky/80 bg-ctp-sky/5 px-2 py-1 rounded-md border border-ctp-sky/10">{r.remote_interface}</span>
+                       <span className="font-mono text-cyan-400/80 bg-cyan-500/5 px-2 py-1 rounded-md border border-cyan-500/10">{r.remote_interface}</span>
                        <div className="flex items-center gap-2 mt-1">
-                         <div className="text-[10px] text-ctp-subtext1 opacity-60 uppercase font-bold tracking-widest">{r.remote_interface_type || 'interface'}</div>
+                         <div className="text-[10px] text-slate-400 opacity-60 uppercase font-bold tracking-widest">{r.remote_interface_type || 'interface'}</div>
                          {r.remote_lag && (
-                           <span className="text-[10px] bg-ctp-lavender/10 text-ctp-lavender px-1.5 py-0.5 rounded border border-ctp-lavender/20 font-bold">
+                           <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 font-bold">
                              {r.remote_lag}
                            </span>
                          )}
                        </div>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="text-[10px] px-2 py-1 rounded-md bg-ctp-crust text-ctp-subtext0 font-bold border border-ctp-surface1">
+                      <span className="text-[10px] px-2 py-1 rounded-md bg-slate-900 text-slate-500 font-bold border border-slate-700">
                         {r.protocol}
                       </span>
                     </td>
@@ -546,7 +560,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                           newResults[i] = { ...newResults[i], type: e.target.value };
                           setResults(newResults);
                         }}
-                        className={`bg-ctp-crust/50 border border-ctp-surface1 rounded-lg px-2 py-1 text-[11px] text-ctp-subtext1 outline-none focus:ring-1 focus:ring-ctp-sky/50 transition-all ${r.cable_exists ? 'cursor-not-allowed' : 'cursor-pointer hover:border-ctp-overlay0'}`}
+                        className={`bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300 outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all ${r.cable_exists ? 'cursor-not-allowed' : 'cursor-pointer hover:border-slate-500'}`}
                       >
                         <option value="cat6">Cat6</option>
                         <option value="cat6a">Cat6a</option>
@@ -559,17 +573,17 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                     </td>
                     <td className="px-6 py-5 text-right">
                       {!r.is_matched ? (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-ctp-peach/10 text-ctp-peach border border-ctp-peach/20 text-[11px] font-bold">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[11px] font-bold">
                           <AlertCircle className="w-3 h-3" />
                           UNMATCHED
                         </div>
                       ) : r.cable_exists ? (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-ctp-surface1/50 text-ctp-subtext0 border border-ctp-surface2/30 text-[11px] font-bold">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600/30 text-[11px] font-bold">
                           <CheckCircle2 className="w-3 h-3" />
                           ALREADY EXISTS
                         </div>
                       ) : (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-ctp-green/10 text-ctp-green border border-ctp-green/20 text-[11px] font-bold">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold">
                           <Zap className="w-3 h-3 animate-pulse" />
                           READY TO IMPORT
                         </div>
@@ -581,15 +595,15 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
             </table>
           </div>
           
-          <div className="p-6 bg-ctp-crust/80 backdrop-blur-md border-t border-ctp-surface1 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="p-6 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex flex-col md:flex-row items-center gap-6">
-              <div className="text-sm text-ctp-subtext1 flex items-center gap-2">
-                <Database className="w-4 h-4 text-ctp-green" />
-                <span>Found <span className="text-ctp-green font-bold underline underline-offset-4 decoration-ctp-green/30">{results.filter(r => r.is_matched && !r.cable_exists).length}</span> missing physical links.</span>
+              <div className="text-sm text-slate-400 flex items-center gap-2">
+                <Database className="w-4 h-4 text-emerald-500" />
+                <span>Found <span className="text-emerald-400 font-bold underline underline-offset-4 decoration-emerald-500/30">{results.filter(r => r.is_matched && !r.cable_exists).length}</span> missing physical links.</span>
               </div>
               
-              <div className="flex items-center gap-3 bg-ctp-crust/50 p-1.5 rounded-2xl border border-ctp-surface1/50">
-                <span className="text-[10px] font-bold text-ctp-overlay1 uppercase ml-2">Global Default</span>
+              <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-2xl border border-slate-700/50">
+                <span className="text-[10px] font-bold text-slate-500 uppercase ml-2">Global Default</span>
                 <select 
                   value={cableType}
                   onChange={(e) => {
@@ -597,7 +611,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                     setCableType(newType);
                     // Optionally update all non-modified rows? Let's just set the default for future scans.
                   }}
-                  className="bg-ctp-mantle border-none rounded-xl px-3 py-1.5 text-xs text-ctp-text outline-none focus:ring-1 focus:ring-ctp-green/50 transition-all cursor-pointer"
+                  className="bg-slate-800 border-none rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
                 >
                   <option value="cat6">Cat6</option>
                   <option value="cat6a">Cat6a</option>
@@ -611,7 +625,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                   onClick={() => {
                     setResults(results.map(r => r.cable_exists ? r : { ...r, type: cableType }));
                   }}
-                  className="text-[10px] font-bold text-ctp-sky hover:text-ctp-sky/80 px-2 transition-colors"
+                  className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 px-2 transition-colors"
                 >
                   Apply to All
                 </button>
@@ -622,8 +636,8 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
               disabled={importing || results.filter(r => r.is_matched && !r.cable_exists).length === 0}
               className={`flex items-center gap-3 px-8 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl active:scale-95 ${
                 importing || results.filter(r => r.is_matched && !r.cable_exists).length === 0
-                  ? 'bg-ctp-mantle text-ctp-overlay1 cursor-not-allowed border border-ctp-surface1'
-                  : 'bg-gradient-to-r from-ctp-green to-ctp-teal text-white shadow-ctp-green/20 hover:shadow-ctp-green/40'
+                  ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
+                  : 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-emerald-900/20 hover:shadow-emerald-900/40'
               }`}
             >
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Import className="w-4 h-4" />}
@@ -636,11 +650,11 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
       {/* Empty State */}
       {results.length === 0 && !isLoading && (
         <div className="flex-1 flex flex-col items-center justify-center p-12 text-center opacity-60">
-          <div className="w-20 h-20 bg-ctp-mantle/50 rounded-full flex items-center justify-center mb-6">
-            <Activity className="w-10 h-10 text-ctp-overlay0" />
+          <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-6">
+            <Activity className="w-10 h-10 text-slate-600" />
           </div>
-          <h4 className="text-xl font-bold text-ctp-subtext0 mb-2">No Active Results</h4>
-          <p className="text-ctp-overlay1 max-w-sm">
+          <h4 className="text-xl font-bold text-slate-400 mb-2">No Active Results</h4>
+          <p className="text-slate-500 max-w-sm">
             Target a device or site to begin SSH discovery. Ensure SSH credentials and SecretsGroups are configured.
           </p>
         </div>

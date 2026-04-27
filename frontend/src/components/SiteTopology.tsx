@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Site, Device, Link } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, Share2, Download, Settings, GitGraph, Plus, Minus, RotateCcw, Loader2 } from 'lucide-react';
+import { ChevronLeft, Share2, Download, Settings, Plus, Minus, RotateCcw, Loader2 } from 'lucide-react';
 import { ROLE_ICON_MAPPING } from '../config/topologyConfig';
 import { ReactFlowProvider } from '@xyflow/react';
 import DeviceFlow from './DeviceFlow';
+
 import { toPng } from 'html-to-image';
 interface SiteTopologyProps {
   site: Site;
@@ -92,6 +93,7 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
             >
               <Share2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
             </button>
+
             <button
               disabled={isExporting}
               onClick={() => {
@@ -195,6 +197,8 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
           </div>
         </div>
       </div>
+
+
     </div>
   );
 }
