@@ -22,8 +22,14 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
         className="w-5 h-5 rounded-full border border-emerald-500/40 bg-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)] cursor-pointer transition-all duration-300 hover:scale-150 hover:bg-emerald-400"
         onClick={() => setExpanded(!expanded)}
       >
-        <Handle type="target" position={Position.Top} className="!opacity-0 !w-0 !h-0" />
-        <Handle type="source" position={Position.Bottom} className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Top} id="t-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Bottom} id="t-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Left} id="t-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Right} id="t-r" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Top} id="s-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Bottom} id="s-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Left} id="s-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Right} id="s-r" className="!opacity-0 !w-0 !h-0" />
       </div>
     );
   }
@@ -36,7 +42,10 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
           : 'bg-slate-900 shadow-sm border-slate-700/40'
         } hover:border-emerald-500/50 hover:bg-slate-800/80 transition-shadow`}>
         
-        <Handle type="target" position={Position.Top} className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Top} id="t-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Bottom} id="t-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Left} id="t-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Right} id="t-r" className="!opacity-0 !w-0 !h-0" />
         
         <div className="relative flex items-center justify-center">
           <Layers className={`${lod === 1 ? 'w-5 h-5' : 'w-7 h-7'} ${isFancy ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.6)]' : 'text-emerald-400'}`} />
@@ -46,7 +55,10 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
             </div>
           )}
         </div>
-        <Handle type="source" position={Position.Bottom} className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Top} id="s-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Bottom} id="s-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Left} id="s-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Right} id="s-r" className="!opacity-0 !w-0 !h-0" />
       </div>
       {lod >= 2 && (
         <p className="text-[10px] font-bold text-slate-400 tracking-tight text-center truncate max-w-[120px] group-hover:text-white transition-colors">

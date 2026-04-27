@@ -18,6 +18,7 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
   const [availableVlans, setAvailableVlans] = useState<string[]>([]);
   const [availablePrefixes, setAvailablePrefixes] = useState<string[]>([]);
   const [prometheusEnabled, setPrometheusEnabled] = useState(false);
+  const [apRoleName, setApRoleName] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -34,6 +35,7 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
           setAvailableVlans(response.data.availableVlans || []);
           setAvailablePrefixes(response.data.availablePrefixes || []);
           setPrometheusEnabled(response.data.config?.prometheus_enabled || false);
+          setApRoleName(response.data.config?.ap_role_name);
         } else {
           setError(response.message || 'Failed to fetch topology');
         }
@@ -154,6 +156,7 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
               availableVlans={availableVlans}
               availablePrefixes={availablePrefixes}
               prometheusEnabled={prometheusEnabled}
+              apRoleName={apRoleName}
             />
           </ReactFlowProvider>
         )}

@@ -59,8 +59,14 @@ export const DeviceNode = React.memo(({ data }: DeviceNodeProps) => {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <Handle type="target" position={Position.Top} className="!opacity-0 !w-0 !h-0" />
-        <Handle type="source" position={Position.Bottom} className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Top} id="t-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Bottom} id="t-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Left} id="t-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Right} id="t-r" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Top} id="s-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Bottom} id="s-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Left} id="s-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Right} id="s-r" className="!opacity-0 !w-0 !h-0" />
       </div>
     );
   }
@@ -81,12 +87,20 @@ export const DeviceNode = React.memo(({ data }: DeviceNodeProps) => {
           <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         )}
         
-        <Handle type="target" position={Position.Top} className="!opacity-0 !w-0 !h-0" />
+        {/* Connection Handles - 4 on each side for both source and target */}
+        <Handle type="target" position={Position.Top} id="t-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Bottom} id="t-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Left} id="t-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="target" position={Position.Right} id="t-r" className="!opacity-0 !w-0 !h-0" />
         
         <div className={`transition-all duration-500 group-hover:scale-110 ${lod >= 2 ? 'drop-shadow-[0_0_10px_rgba(255,255,255,0.15)]' : ''}`}>
           {getIcon(lod === 1 ? "w-5 h-5" : "w-7 h-7")}
         </div>
-        <Handle type="source" position={Position.Bottom} className="!opacity-0 !w-0 !h-0" />
+
+        <Handle type="source" position={Position.Top} id="s-t" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Bottom} id="s-b" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Left} id="s-l" className="!opacity-0 !w-0 !h-0" />
+        <Handle type="source" position={Position.Right} id="s-r" className="!opacity-0 !w-0 !h-0" />
       </div>
       {lod >= 2 && (
         <div className="flex flex-col items-center -gap-0.5">

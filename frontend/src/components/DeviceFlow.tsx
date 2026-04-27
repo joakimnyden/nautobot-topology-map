@@ -57,6 +57,7 @@ interface DeviceFlowProps {
   availablePrefixes: string[];
   prometheusEnabled?: boolean;
   debugEnabled?: boolean;
+  apRoleName?: string;
 }
 
 export default function DeviceFlow({ 
@@ -66,7 +67,8 @@ export default function DeviceFlow({
   availableVlans, 
   availablePrefixes, 
   prometheusEnabled = false, 
-  debugEnabled = false 
+  debugEnabled = false,
+  apRoleName 
 }: DeviceFlowProps) {
   // 1. Preferences & Selection State
   const [iconMode, setIconMode] = useState<'role' | 'vendor'>('role');
@@ -129,7 +131,8 @@ export default function DeviceFlow({
     showTraffic: trafficEnabled,
     linkMetrics,
     zoom,
-    onDeviceHover
+    onDeviceHover,
+    apRoleName
   });
 
   const {

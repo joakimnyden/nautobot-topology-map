@@ -101,6 +101,7 @@ class TopologyViewSet(ViewSet):
         allowed_device_types = plugin_config.get('allowed_device_types', [])
         topology_style = plugin_config.get('topology_style', 'fancy')
         prometheus_enabled = plugin_config.get('prometheus_enabled', False)
+        ap_role_name = plugin_config.get('ap_role_name', 'Access Points')
         # Gather all devices including those in sub-locations (recursive)
         locations = get_locations_for_site(site)
         devices_qs = Device.objects.filter(location__in=locations)
@@ -274,10 +275,16 @@ class TopologyViewSet(ViewSet):
                 })
             else:
                 # Group unconnected devices by location AND whether they are APs
+                ap_role_name = plugin_config.get('ap_role_name', 'Access Points')
                 role_name = str(getattr(device.role, "name", "") or "")
-                is_ap = "access" in role_name.lower()
+                # Exact match or case-insensitive match for the configured role
+                is_ap = role_name.lower() == ap_role_name.lower()
+                # Fallback for common naming if using default
+                if ap_role_name.lower() == "access points" and not is_ap:
+                    is_ap = role_name.lower() == "access point"
+                
                 loc_id = str(device.location_id)
-                group_key = f"{loc_id}-ap" if is_ap else f"{loc_id}-dev"
+                group_key = f"{loc_id}-ap" if is_ap else f"{loc_id}-other"
                 
                 if group_key not in unconnected_by_location:
                     unconnected_by_location[group_key] = []
@@ -292,7 +299,7 @@ class TopologyViewSet(ViewSet):
             
             if len(group_devices) > 1:
                 # Aggregate into a "Group" node
-                group_name = f"{loc_obj.name} (Unconnected APs)" if is_ap_group else f"{loc_obj.name} (Unconnected)"
+                group_name = f"{loc_obj.name} ({ap_role_name})" if is_ap_group else f"{loc_obj.name} (Other)"
                 
                 # Collect basic metadata about the devices within this group
                 inner_devices = []
@@ -314,7 +321,7 @@ class TopologyViewSet(ViewSet):
                     "id": f"group-{loc_id}",
                     "name": group_name,
                     "siteId": str(site.id),
-                    "role": "Access Points" if is_ap_group else "Grouped Devices",
+                    "role": ap_role_name if is_ap_group else "Other",
                     "type": "group",
                     "deviceCount": len(group_devices),
                     "devices": inner_devices,
@@ -360,6 +367,7 @@ class TopologyViewSet(ViewSet):
                 "config": {
                     "topology_style": topology_style,
                     "prometheus_enabled": prometheus_enabled,
+                    "ap_role_name": ap_role_name,
                 "debug": plugin_config.get('debug', False)
               }
             }

@@ -61,6 +61,21 @@ To install the plugin from source in a Nautobot environment:
    sudo systemctl restart nautobot nautobot-worker
    ```
 
+## Configuration
+
+You can customize the plugin behavior in your `nautobot_config.py`:
+
+```python
+PLUGINS_CONFIG = {
+    "nautobot_topology": {
+        "ap_role_name": "Access Point",  # The specific role name used to identify APs for grouping/stacking
+        "allowed_statuses": ["Active"],
+        "cache_timeout": 300,
+        "prometheus_enabled": False,
+    }
+}
+```
+
 ## Development
 
 ### Local Setup with `uv`
