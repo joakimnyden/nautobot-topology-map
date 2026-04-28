@@ -127,6 +127,7 @@ export default function DeviceFlow({
     lod,
     showInterfaces,
     selectedEdgeId,
+    selectedNodeId,
     hoveredEdgeId,
     showTraffic: trafficEnabled,
     linkMetrics,

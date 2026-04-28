@@ -12,6 +12,7 @@ interface UseTopologyDataProps {
   lod: number;
   showInterfaces: boolean;
   selectedEdgeId: string | null;
+  selectedNodeId: string | null;
   hoveredEdgeId: string | null;
   showTraffic: boolean;
   linkMetrics: Record<string, any>;
@@ -29,6 +30,7 @@ export function useTopologyData({
   lod,
   showInterfaces,
   selectedEdgeId,
+  selectedNodeId,
   hoveredEdgeId,
   showTraffic,
   linkMetrics,
@@ -269,7 +271,7 @@ export function useTopologyData({
           style: {
             stroke: (hasHovered || isSelected) ? '#fbbf24' : (hasLAG ? '#818cf8' : '#475569'),
             strokeWidth: 3 + Math.min(group.length, 5),
-            opacity: (filterValue || selectedEdgeId) && !hasHovered && !isSelected ? 0.3 : 0.8,
+            opacity: (filterValue || selectedEdgeId || selectedNodeId) && !hasHovered && !isSelected ? 0.3 : 0.8,
             strokeDasharray: hasLogical && !hasLAG ? '8,4' : 'none',
             filter: (hasHovered || isSelected) ? `drop-shadow(0 0 8px #fbbf24)` : 'none',
           },
@@ -298,7 +300,20 @@ export function useTopologyData({
               : `${formatInterfaceName(link.sourceInterface || '')} ↔ ${formatInterfaceName(link.targetInterface || '')}`;
           }
 
-          const edgeType = isLogical || (group.length > 1) ? 'bezier' : (link.isPortChannel ? 'straight' : (links.length > 500 ? 'straight' : 'smoothstep'));
+          const isRelatedToSelection = sId === selectedNodeId || tId === selectedNodeId;
+          
+          const sourceRole = sourceDev.role.toLowerCase();
+          const targetRole = targetDev.role.toLowerCase();
+          const isSpineLeafOrCoreDist = (
+            (sourceRole.includes('spine') && targetRole.includes('leaf')) ||
+            (sourceRole.includes('leaf') && targetRole.includes('spine')) ||
+            (sourceRole.includes('core') && (targetRole.includes('dist') || targetRole.includes('distribution'))) ||
+            (targetRole.includes('core') && (sourceRole.includes('dist') || sourceRole.includes('distribution'))) ||
+            (sourceRole.includes('core') && targetRole.includes('core'))
+          );
+
+          const forceStraight = link.isPortChannel || (link.type === 'physical' && isSpineLeafOrCoreDist);
+          const edgeType = isLogical || (group.length > 1) ? 'bezier' : (forceStraight ? 'straight' : (links.length > 500 ? 'straight' : 'smoothstep'));
 
           edges.push({
             id: link.id,
@@ -306,11 +321,11 @@ export function useTopologyData({
             target: tId,
             type: edgeType,
             hidden: links.length > 5000 && zoom < 0.1,
-            animated: (link.id === hoveredEdgeId || isSelected || (isEdgeHighlighted && links.length < 500)) && !link.isPortChannel,
-            label: links.length > 1500 && !isSelected ? undefined : label,
-            data: { curvature: isLogical ? (edgeIndex % 2 === 0 ? 0.35 : -0.35) : (edgeIndex === 0 ? 0 : (edgeIndex % 2 === 0 ? 0.2 : -0.2)) },
+            animated: (link.id === hoveredEdgeId || isSelected || isRelatedToSelection || (isEdgeHighlighted && links.length < 500)) && !link.isPortChannel && (link.type !== 'physical' || isRelatedToSelection || isSelected),
+            label: links.length > 1500 && !isSelected && !isRelatedToSelection ? undefined : label,
+            data: { curvature: isLogical ? (edgeIndex % 2 === 0 ? 0.35 : -0.35) : (edgeIndex === 0 || forceStraight ? 0 : (edgeIndex % 2 === 0 ? 0.2 : -0.2)) },
             labelStyle: {
-              fill: isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : (link.type === 'physical' ? '#94a3b8' : (link.type === 'port-channel' ? '#a5b4fc' : '#10b981'))),
+              fill: isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : (link.type === 'physical' ? '#94a3b8' : (link.type === 'port-channel' ? '#a5b4fc' : '#10b981'))),
               fontSize: (showInterfaces || isSelected) ? 8 : 10,
               fontWeight: 800,
               fontFamily: 'var(--font-mono)'
@@ -319,12 +334,12 @@ export function useTopologyData({
             style: {
               stroke: (showTraffic && linkMetrics[link.id]) 
                 ? (linkMetrics[link.id].utilization < 50 ? '#10b981' : (linkMetrics[link.id].utilization < 80 ? '#fbbf24' : '#ef4444'))
-                : (isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : (link.type === 'physical' ? '#475569' : (link.type === 'port-channel' ? '#818cf8' : '#10b981')))),
-              strokeWidth: link.isPortChannel ? 5 : (isEdgeHighlighted ? 5 : (isSelected ? 4 : (link.type === 'physical' ? 2 : 1.5))),
-              opacity: (filterValue || selectedEdgeId) && !isEdgeHighlighted && !isSelected ? 0.4 : 1,
+                : (isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : (link.type === 'physical' ? '#475569' : (link.type === 'port-channel' ? '#818cf8' : '#10b981')))),
+              strokeWidth: link.isPortChannel ? 5 : (isEdgeHighlighted ? 5 : (isSelected || isRelatedToSelection ? 4 : (link.type === 'physical' ? 2 : 1.5))),
+              opacity: (filterValue || selectedEdgeId || selectedNodeId) && !isEdgeHighlighted && !isSelected && !isRelatedToSelection ? 0.2 : 1,
               strokeDasharray: isLogical ? '8,4' : 'none',
-              filter: (link.type === 'port-channel' || isEdgeHighlighted || isSelected) 
-                ? `drop-shadow(0 0 6px ${isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : '#818cf8')})` 
+              filter: (link.type === 'port-channel' || isEdgeHighlighted || isSelected || isRelatedToSelection) 
+                ? `drop-shadow(0 0 8px ${isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : '#818cf8')})` 
                 : 'none',
             },
           });
@@ -333,6 +348,6 @@ export function useTopologyData({
     });
 
     return edges;
-  }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom, apRoleName]);
+  }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, selectedNodeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom, apRoleName]);
   return { validDevices, deviceMap, linkMap, linksByDevice, topoNodes, topoEdges };
 }

@@ -20,7 +20,7 @@ export const ControlPanel = ({
   setFilterSearchQuery,
   filteredAvailableValues,
   iconMode,
-  setIconMode
+  setIconMode,
 }: ControlPanelProps) => {
   return (
     <div className="absolute top-28 right-8 z-20 flex flex-col gap-3 items-end">
@@ -85,20 +85,23 @@ export const ControlPanel = ({
         </div>
       )}
       {/* Icon Toggles */}
-      <div className="flex items-center justify-center gap-1 px-5 py-3 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-slate-700/30 w-full max-w-[200px]">
-        <button
-          onClick={() => setIconMode('role')}
-          className={`flex-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${iconMode === 'role' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'text-slate-500 hover:text-slate-200'}`}
-        >
-          Role
-        </button>
-        <span className="text-slate-700 font-extralight mx-1">|</span>
-        <button
-          onClick={() => setIconMode('vendor')}
-          className={`flex-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${iconMode === 'vendor' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'text-slate-500 hover:text-slate-200'}`}
-        >
-          Vendor
-        </button>
+      <div className="flex flex-col items-end gap-1.5 w-full max-w-[200px]">
+        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mr-2">Display Icons</span>
+        <div className="flex items-center justify-center gap-1 px-5 py-3 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-slate-700/30 w-full">
+          <button
+            onClick={() => setIconMode('role')}
+            className={`flex-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${iconMode === 'role' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'text-slate-500 hover:text-slate-200'}`}
+          >
+            Role
+          </button>
+          <span className="text-slate-700 font-extralight mx-1">|</span>
+          <button
+            onClick={() => setIconMode('vendor')}
+            className={`flex-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${iconMode === 'vendor' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'text-slate-500 hover:text-slate-200'}`}
+          >
+            Vendor
+          </button>
+        </div>
       </div>
     </div>
   );
