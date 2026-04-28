@@ -52,9 +52,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "tags",
-                    nautobot.core.models.fields.TagsField(
-                        through="extras.TaggedItem", to="extras.Tag"
-                    ),
+                    nautobot.core.models.fields.TagsField(through="extras.TaggedItem", to="extras.Tag"),
                 ),
             ],
             options={

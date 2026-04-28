@@ -2,25 +2,25 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 from nautobot_topology.api.views import TopologyViewSet
 from unittest.mock import MagicMock, patch
-import json
+
 
 class APGroupingTest(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.view = TopologyViewSet.as_view({'get': 'retrieve'})
+        self.view = TopologyViewSet.as_view({"get": "retrieve"})
 
-    @override_settings(PLUGINS_CONFIG={'nautobot_topology': {
-        'ap_role_name': 'My Custom AP Role'
-    }})
-    @patch('nautobot_topology.api.views.get_locations_for_site')
-    @patch('nautobot_topology.api.views.Location.objects.get')
-    @patch('nautobot_topology.api.views.Device.objects.filter')
-    @patch('nautobot_topology.api.views.Cable.objects.filter')
-    @patch('nautobot.dcim.models.Interface.objects.filter')
-    @patch('nautobot.dcim.models.FrontPort.objects.filter')
-    @patch('nautobot_topology.api.views.VLAN.objects.filter')
-    @patch('nautobot_topology.api.views.Prefix.objects.filter')
-    def test_custom_ap_role_grouping(self, mock_prefix, mock_vlan, mock_fp, mock_iface, mock_cable, mock_device, mock_loc_get, mock_get_locs):
+    @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"ap_role_name": "My Custom AP Role"}})
+    @patch("nautobot_topology.api.views.get_locations_for_site")
+    @patch("nautobot_topology.api.views.Location.objects.get")
+    @patch("nautobot_topology.api.views.Device.objects.filter")
+    @patch("nautobot_topology.api.views.Cable.objects.filter")
+    @patch("nautobot.dcim.models.Interface.objects.filter")
+    @patch("nautobot.dcim.models.FrontPort.objects.filter")
+    @patch("nautobot_topology.api.views.VLAN.objects.filter")
+    @patch("nautobot_topology.api.views.Prefix.objects.filter")
+    def test_custom_ap_role_grouping(
+        self, mock_prefix, mock_vlan, mock_fp, mock_iface, mock_cable, mock_device, mock_loc_get, mock_get_locs
+    ):
         # Mock site
         site = MagicMock()
         site.id = "site1"
@@ -104,42 +104,60 @@ class APGroupingTest(TestCase):
         # Mock cables to connect dev1 and dev6
         # Interface data
         mock_iface.return_value.values.return_value = [
-            {'id': 'if1', 'device_id': 'dev1', 'name': 'Gi1', 'lag_id': None, 'type': '1000base-t', 'speed': 1000000, 'device__name': 'Router 1'},
-            {'id': 'if6', 'device_id': 'dev6', 'name': 'Gi1', 'lag_id': None, 'type': '1000base-t', 'speed': 1000000, 'device__name': 'Router 2'}
+            {
+                "id": "if1",
+                "device_id": "dev1",
+                "name": "Gi1",
+                "lag_id": None,
+                "type": "1000base-t",
+                "speed": 1000000,
+                "device__name": "Router 1",
+            },
+            {
+                "id": "if6",
+                "device_id": "dev6",
+                "name": "Gi1",
+                "lag_id": None,
+                "type": "1000base-t",
+                "speed": 1000000,
+                "device__name": "Router 2",
+            },
         ]
         # Cable data
         mock_cable.return_value.values.return_value = [
-            {'id': 'c1', 'termination_a_id': 'if1', 'termination_b_id': 'if6', 'label': '', 'type': ''}
+            {"id": "c1", "termination_a_id": "if1", "termination_b_id": "if6", "label": "", "type": ""}
         ]
 
-        request = self.factory.get('/api/plugins/nautobot_topology/topology/site1/')
+        request = self.factory.get("/api/plugins/nautobot_topology/topology/site1/")
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
-        user = User(username='testuser', is_superuser=True)
+        user = User(username="testuser", is_superuser=True)
         from rest_framework.test import force_authenticate
+
         force_authenticate(request, user=user)
-        response = self.view(request, pk='site1')
+        response = self.view(request, pk="site1")
 
         self.assertEqual(response.status_code, 200)
-        nodes = response.data['data']['nodes']
-        
+        nodes = response.data["data"]["nodes"]
+
         # Expected nodes:
         # 1. Router 1 (individual, ID: dev1)
         # 2. AP Group (group-site1-ap, Role: My Custom AP Role, Count: 2)
         # 3. Other Group (group-site1-other, Role: Other, Count: 2)
-        
-        node_ids = [n['id'] for n in nodes]
-        self.assertIn('dev1', node_ids)
-        self.assertIn('group-site1-ap', node_ids)
-        self.assertIn('group-site1-other', node_ids)
-        
-        ap_group = next(n for n in nodes if n['id'] == 'group-site1-ap')
-        self.assertEqual(ap_group['role'], 'My Custom AP Role')
-        self.assertEqual(ap_group['deviceCount'], 2)
-        
-        other_group = next(n for n in nodes if n['id'] == 'group-site1-other')
-        self.assertEqual(other_group['role'], 'Other')
-        self.assertEqual(other_group['deviceCount'], 2)
+
+        node_ids = [n["id"] for n in nodes]
+        self.assertIn("dev1", node_ids)
+        self.assertIn("group-site1-ap", node_ids)
+        self.assertIn("group-site1-other", node_ids)
+
+        ap_group = next(n for n in nodes if n["id"] == "group-site1-ap")
+        self.assertEqual(ap_group["role"], "My Custom AP Role")
+        self.assertEqual(ap_group["deviceCount"], 2)
+
+        other_group = next(n for n in nodes if n["id"] == "group-site1-other")
+        self.assertEqual(other_group["role"], "Other")
+        self.assertEqual(other_group["deviceCount"], 2)
 
         # Check config in response
-        self.assertEqual(response.data['data']['config']['ap_role_name'], 'My Custom AP Role')
+        self.assertEqual(response.data["data"]["config"]["ap_role_name"], "My Custom AP Role")

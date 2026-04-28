@@ -2,32 +2,48 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 from nautobot_topology.api.views import TopologyViewSet
-import nautobot.dcim.models as dcim_models
+
 
 class TopologyViewSetExtraTest(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.retrieve_view = TopologyViewSet.as_view({'get': 'retrieve'})
-        self.list_view = TopologyViewSet.as_view({'get': 'list'})
+        self.retrieve_view = TopologyViewSet.as_view({"get": "retrieve"})
+        self.list_view = TopologyViewSet.as_view({"get": "list"})
 
-    @override_settings(PLUGINS_CONFIG={'nautobot_topology': {
-        'allowed_statuses': ['Active'],
-        'allowed_device_types': [],
-        'topology_style': 'fancy',
-        'prometheus_enabled': True,
-        'prometheus_url': 'mock'
-    }})
-    @patch('nautobot.dcim.models.Interface.objects.filter')
-    @patch('nautobot.dcim.models.FrontPort.objects.filter')
-    @patch('nautobot_topology.api.views.cache.set')
-    @patch('nautobot_topology.api.views.cache.get', return_value=None)
-    @patch('nautobot_topology.api.views.Location.objects.get')
-    @patch('nautobot_topology.api.views.Location.objects.filter')
-    @patch('nautobot_topology.api.views.Device.objects.filter')
-    @patch('nautobot_topology.api.views.Cable.objects.filter')
-    @patch('nautobot_topology.api.views.VLAN.objects.filter')
-    @patch('nautobot_topology.api.views.Prefix.objects.filter')
-    def test_retrieve_complex_branches(self, mock_prefix_filter, mock_vlan_filter, mock_cable_filter, mock_device_filter, mock_loc_filter, mock_get_loc, mock_cache_get, mock_cache_set, mock_fp_filter, mock_iface_filter):
+    @override_settings(
+        PLUGINS_CONFIG={
+            "nautobot_topology": {
+                "allowed_statuses": ["Active"],
+                "allowed_device_types": [],
+                "topology_style": "fancy",
+                "prometheus_enabled": True,
+                "prometheus_url": "mock",
+            }
+        }
+    )
+    @patch("nautobot.dcim.models.Interface.objects.filter")
+    @patch("nautobot.dcim.models.FrontPort.objects.filter")
+    @patch("nautobot_topology.api.views.cache.set")
+    @patch("nautobot_topology.api.views.cache.get", return_value=None)
+    @patch("nautobot_topology.api.views.Location.objects.get")
+    @patch("nautobot_topology.api.views.Location.objects.filter")
+    @patch("nautobot_topology.api.views.Device.objects.filter")
+    @patch("nautobot_topology.api.views.Cable.objects.filter")
+    @patch("nautobot_topology.api.views.VLAN.objects.filter")
+    @patch("nautobot_topology.api.views.Prefix.objects.filter")
+    def test_retrieve_complex_branches(
+        self,
+        mock_prefix_filter,
+        mock_vlan_filter,
+        mock_cable_filter,
+        mock_device_filter,
+        mock_loc_filter,
+        mock_get_loc,
+        mock_cache_get,
+        mock_cache_set,
+        mock_fp_filter,
+        mock_iface_filter,
+    ):
 
         mock_site = MagicMock()
         mock_site.id = "123"
@@ -44,7 +60,7 @@ class TopologyViewSetExtraTest(TestCase):
         dev1.primary_ip4 = None
         dev1.primary_ip6.address.ip = "2001:db8::1"
         dev1.location_id = "loc1"
-        
+
         iface = MagicMock()
         iface.untagged_vlan.vid = 10
         iface.untagged_vlan.name = "V1"
@@ -80,7 +96,7 @@ class TopologyViewSetExtraTest(TestCase):
         mock_cable_qs = MagicMock()
         mock_cable_qs.values.return_value = []
         mock_cable_filter.return_value = mock_cable_qs
-        
+
         # Mock VLAN/Prefix aggregation
         mock_vlan_filter.return_value.values_list.return_value = [(100, "S1")]
         mock_prefix_filter.return_value.values_list.return_value = [("10.0.0.0", 8)]
@@ -90,20 +106,24 @@ class TopologyViewSetExtraTest(TestCase):
         mock_fp_filter.return_value.values.return_value = []
 
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
-        user = User(username='testuser', is_superuser=True)
+        user = User(username="testuser", is_superuser=True)
         from rest_framework.test import force_authenticate
-        request = self.factory.get('/api/plugins/nautobot_topology/topology/123/')
+
+        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/")
         force_authenticate(request, user=user)
-        response = self.retrieve_view(request, pk='123')
-        
+        response = self.retrieve_view(request, pk="123")
+
         self.assertEqual(response.status_code, 200)
-        data = response.data['data']
-        self.assertEqual(len(data['nodes']), 2) # dev1 and single dev2 (since it's only 1 unconnected dev, it should be individual)
-        
-    @patch('nautobot_topology.api.views.cache.set')
-    @patch('nautobot_topology.api.views.cache.get', return_value=None)
-    @patch('nautobot_topology.api.views.Location.objects.filter')
+        data = response.data["data"]
+        self.assertEqual(
+            len(data["nodes"]), 2
+        )  # dev1 and single dev2 (since it's only 1 unconnected dev, it should be individual)
+
+    @patch("nautobot_topology.api.views.cache.set")
+    @patch("nautobot_topology.api.views.cache.get", return_value=None)
+    @patch("nautobot_topology.api.views.Location.objects.filter")
     def test_list_missing_coords(self, mock_filter, mock_cache_get, mock_cache_set):
         site1 = MagicMock()
         site1.id = "1"
@@ -112,21 +132,23 @@ class TopologyViewSetExtraTest(TestCase):
         site1.longitude = 10.0
         site1.parent = None
         site1.device_count = 0
-        
+
         site2 = MagicMock()
         site2.id = "2"
         site2.latitude = None
         site2.longitude = 10.0
-        
+
         mock_qs = MagicMock()
         mock_qs.select_related.return_value.annotate.return_value = [site1, site2]
         mock_filter.return_value = mock_qs
-        
+
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
-        user = User(username='testuser', is_superuser=True)
+        user = User(username="testuser", is_superuser=True)
         from rest_framework.test import force_authenticate
-        request = self.factory.get('/api/plugins/nautobot_topology/topology/')
+
+        request = self.factory.get("/api/plugins/nautobot_topology/topology/")
         force_authenticate(request, user=user)
         response = self.list_view(request)
-        self.assertEqual(len(response.data['data']['nodes']), 1)
+        self.assertEqual(len(response.data["data"]["nodes"]), 1)

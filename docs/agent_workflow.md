@@ -68,3 +68,8 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 - **Backend**: Execute via `uv run invoke test`. Follow Nautobot's official API testing framework standards.
   - **Permissions**: When testing Nautobot `ObjectPermission`, be aware that DRF's `force_authenticate` or Django's `force_login` may not always pick up model-level permission changes in the same test session without a user re-fetch/re-authentication.
 - **Frontend**: Execute via `npm run test --prefix frontend` (Vitest + React Testing Library). Ensure custom hooks have dedicated `.test.ts` files (use `renderHook`).
+## 5. CI Standards (GitHub Actions)
+- **Linting**: Every push MUST pass `black --check .` and `flake8 .`.
+- **Dependencies**: All runtime dependencies (e.g., `netmiko`, `requests`) MUST be declared in `pyproject.toml`.
+- **Versions**: The plugin version in `nautobot_topology/__init__.py` MUST match `pyproject.toml` and `tests/test_plugin.py`.
+- **Settings**: CI uses `nautobot_config` as the `DJANGO_SETTINGS_MODULE`. Ensure `PYTHONPATH=.` is set in the environment.

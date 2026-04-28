@@ -63,7 +63,8 @@ jobs:
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
           NAUTOBOT_REDIS_HOST: localhost
-          DJANGO_SETTINGS_MODULE: nautobot.core.settings
+          DJANGO_SETTINGS_MODULE: nautobot_config
+          PYTHONPATH: .
         run: |
           uv run nautobot-server init
       - name: Run Tests
@@ -73,5 +74,6 @@ jobs:
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
           NAUTOBOT_REDIS_HOST: localhost
-          DJANGO_SETTINGS_MODULE: nautobot.core.settings
+          DJANGO_SETTINGS_MODULE: nautobot_config
+          PYTHONPATH: .
         run: uv run pytest

@@ -32,6 +32,9 @@ dependencies = [
     "pydantic>=2.0",
     "factory-boy",
     "nautobot-bgp-models>=3.1.1",
+    "netmiko>=4.0.0",
+    "ntc-templates>=3.0.0",
+    "requests",
 ]
 
 [project.optional-dependencies]

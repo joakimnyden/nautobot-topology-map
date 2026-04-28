@@ -2,11 +2,12 @@
 Unit tests for TopologyViewSet — all mocked, no DB interaction.
 Uses Django's TestCase (not Nautobot's APITestCase) so no generate_test_data is triggered.
 """
-from unittest.mock import patch, MagicMock, call
+
+from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
-from nautobot_topology.api.views import TopologyViewSet, get_locations_for_site
+from nautobot_topology.api.views import get_locations_for_site
 
 User = get_user_model()
 
@@ -15,22 +16,21 @@ class TopologyViewSetListTest(TestCase):
     """Tests for the global list endpoint (/topology/)."""
 
     def setUp(self):
-        self.user = User.objects.create_superuser(
-            username='tv_listuser', email='tv@example.com', password='password'
-        )
+        self.user = User.objects.create_superuser(username="tv_listuser", email="tv@example.com", password="password")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    @patch('nautobot_topology.api.views.cache.get',
-           return_value={'status': 'success', 'data': {'nodes': [], 'links': []}})
+    @patch(
+        "nautobot_topology.api.views.cache.get", return_value={"status": "success", "data": {"nodes": [], "links": []}}
+    )
     def test_list_cached(self, mock_cache_get):
-        response = self.client.get('/api/plugins/nautobot_topology/topology/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['status'], 'success')
+        self.assertEqual(response.data["status"], "success")
 
-    @patch('nautobot_topology.api.views.cache.set')
-    @patch('nautobot_topology.api.views.Location.objects.filter')
-    @patch('nautobot_topology.api.views.cache.get', return_value=None)
+    @patch("nautobot_topology.api.views.cache.set")
+    @patch("nautobot_topology.api.views.Location.objects.filter")
+    @patch("nautobot_topology.api.views.cache.get", return_value=None)
     def test_list_uncached_with_coords(self, mock_cache_get, mock_filter, mock_cache_set):
         mock_qs = MagicMock()
         mock_site = MagicMock()
@@ -44,15 +44,15 @@ class TopologyViewSetListTest(TestCase):
         mock_qs.select_related.return_value.annotate.return_value = [mock_site]
         mock_filter.return_value = mock_qs
 
-        response = self.client.get('/api/plugins/nautobot_topology/topology/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['status'], 'success')
-        self.assertEqual(len(response.data['data']['nodes']), 1)
-        self.assertEqual(response.data['data']['nodes'][0]['name'], "Test Site")
+        self.assertEqual(response.data["status"], "success")
+        self.assertEqual(len(response.data["data"]["nodes"]), 1)
+        self.assertEqual(response.data["data"]["nodes"][0]["name"], "Test Site")
 
-    @patch('nautobot_topology.api.views.cache.set')
-    @patch('nautobot_topology.api.views.Location.objects.filter')
-    @patch('nautobot_topology.api.views.cache.get', return_value=None)
+    @patch("nautobot_topology.api.views.cache.set")
+    @patch("nautobot_topology.api.views.Location.objects.filter")
+    @patch("nautobot_topology.api.views.cache.get", return_value=None)
     def test_list_uncached_no_coords_skipped(self, mock_cache_get, mock_filter, mock_cache_set):
         """Sites without coordinates are excluded from the global view."""
         mock_qs = MagicMock()
@@ -64,39 +64,37 @@ class TopologyViewSetListTest(TestCase):
         mock_qs.select_related.return_value.annotate.return_value = [mock_site]
         mock_filter.return_value = mock_qs
 
-        response = self.client.get('/api/plugins/nautobot_topology/topology/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data['data']['nodes']), 0)
+        self.assertEqual(len(response.data["data"]["nodes"]), 0)
 
 
 class TopologyViewSetRetrieveTest(TestCase):
     """Tests for the site detail endpoint (/topology/<pk>/)."""
 
     def setUp(self):
-        self.user = User.objects.create_superuser(
-            username='tv_retuser', email='tvret@example.com', password='password'
-        )
+        self.user = User.objects.create_superuser(username="tv_retuser", email="tvret@example.com", password="password")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    @patch('nautobot_topology.api.views.Location.objects.get')
+    @patch("nautobot_topology.api.views.Location.objects.get")
     def test_retrieve_not_found(self, mock_get):
         import nautobot.dcim.models as dcim_models
+
         mock_get.side_effect = dcim_models.Location.DoesNotExist
-        response = self.client.get('/api/plugins/nautobot_topology/topology/123/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/")
         self.assertEqual(response.status_code, 404)
 
-    @patch('nautobot.dcim.models.Interface.objects.filter')
-    @patch('nautobot.dcim.models.FrontPort.objects.filter')
-    @patch('nautobot_topology.api.views.Location.objects.get')
-    @patch('nautobot_topology.api.views.get_locations_for_site')
-    @patch('nautobot_topology.api.views.Device.objects.filter')
-    @patch('nautobot_topology.api.views.Cable.objects.filter')
-    @patch('nautobot_topology.api.views.VLAN.objects.filter')
-    @patch('nautobot_topology.api.views.Prefix.objects.filter')
+    @patch("nautobot.dcim.models.Interface.objects.filter")
+    @patch("nautobot.dcim.models.FrontPort.objects.filter")
+    @patch("nautobot_topology.api.views.Location.objects.get")
+    @patch("nautobot_topology.api.views.get_locations_for_site")
+    @patch("nautobot_topology.api.views.Device.objects.filter")
+    @patch("nautobot_topology.api.views.Cable.objects.filter")
+    @patch("nautobot_topology.api.views.VLAN.objects.filter")
+    @patch("nautobot_topology.api.views.Prefix.objects.filter")
     def test_retrieve_success(
-        self, mock_prefix, mock_vlan, mock_cable, mock_device,
-        mock_get_locs, mock_get_loc, mock_fp, mock_iface
+        self, mock_prefix, mock_vlan, mock_cable, mock_device, mock_get_locs, mock_get_loc, mock_fp, mock_iface
     ):
         mock_site = MagicMock()
         mock_site.id = "123"
@@ -129,21 +127,20 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_iface.return_value.values.return_value = []
         mock_fp.return_value.values.return_value = []
 
-        response = self.client.get('/api/plugins/nautobot_topology/topology/123/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['status'], 'success')
+        self.assertEqual(response.data["status"], "success")
 
-    @patch('nautobot.dcim.models.Interface.objects.filter')
-    @patch('nautobot.dcim.models.FrontPort.objects.filter')
-    @patch('nautobot_topology.api.views.Location.objects.get')
-    @patch('nautobot_topology.api.views.get_locations_for_site')
-    @patch('nautobot_topology.api.views.Device.objects.filter')
-    @patch('nautobot_topology.api.views.Cable.objects.filter')
-    @patch('nautobot_topology.api.views.VLAN.objects.filter')
-    @patch('nautobot_topology.api.views.Prefix.objects.filter')
+    @patch("nautobot.dcim.models.Interface.objects.filter")
+    @patch("nautobot.dcim.models.FrontPort.objects.filter")
+    @patch("nautobot_topology.api.views.Location.objects.get")
+    @patch("nautobot_topology.api.views.get_locations_for_site")
+    @patch("nautobot_topology.api.views.Device.objects.filter")
+    @patch("nautobot_topology.api.views.Cable.objects.filter")
+    @patch("nautobot_topology.api.views.VLAN.objects.filter")
+    @patch("nautobot_topology.api.views.Prefix.objects.filter")
     def test_retrieve_unconnected_devices_grouped(
-        self, mock_prefix, mock_vlan, mock_cable, mock_device,
-        mock_get_locs, mock_get_loc, mock_fp, mock_iface
+        self, mock_prefix, mock_vlan, mock_cable, mock_device, mock_get_locs, mock_get_loc, mock_fp, mock_iface
     ):
         """Multiple unconnected devices in the same location are grouped."""
         mock_site = MagicMock()
@@ -180,13 +177,13 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_iface.return_value.values.return_value = []
         mock_fp.return_value.values.return_value = []
 
-        response = self.client.get('/api/plugins/nautobot_topology/topology/site1/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/site1/")
         self.assertEqual(response.status_code, 200)
         # 2 APs in same location → one group node
-        nodes = response.data['data']['nodes']
+        nodes = response.data["data"]["nodes"]
         self.assertEqual(len(nodes), 1)
-        self.assertEqual(nodes[0]['type'], 'group')
-        self.assertEqual(nodes[0]['deviceCount'], 2)
+        self.assertEqual(nodes[0]["type"], "group")
+        self.assertEqual(nodes[0]["deviceCount"], 2)
 
 
 class TopologyViewSetLayoutTest(TestCase):
@@ -194,58 +191,58 @@ class TopologyViewSetLayoutTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_superuser(
-            username='tv_layoutuser', email='tvlayout@example.com', password='password'
+            username="tv_layoutuser", email="tvlayout@example.com", password="password"
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    @patch('nautobot_topology.api.views.Location.objects.get')
+    @patch("nautobot_topology.api.views.Location.objects.get")
     def test_layout_post_saves(self, mock_loc_get):
         mock_site = MagicMock()
-        mock_site.pk = '123'
+        mock_site.pk = "123"
         mock_loc_get.return_value = mock_site
-        with patch('nautobot_topology.models.TopologyLayout.objects.update_or_create'):
+        with patch("nautobot_topology.models.TopologyLayout.objects.update_or_create"):
             response = self.client.post(
-                '/api/plugins/nautobot_topology/topology/123/layout/',
-                {"node1": {"x": 10, "y": 20}},
-                format='json'
+                "/api/plugins/nautobot_topology/topology/123/layout/", {"node1": {"x": 10, "y": 20}}, format="json"
             )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['status'], 'success')
-        self.assertEqual(response.data['message'], 'Layout saved')
+        self.assertEqual(response.data["status"], "success")
+        self.assertEqual(response.data["message"], "Layout saved")
 
-    @patch('nautobot_topology.api.views.Location.objects.get')
+    @patch("nautobot_topology.api.views.Location.objects.get")
     def test_layout_get_with_saved_data(self, mock_loc_get):
         mock_site = MagicMock()
-        mock_site.pk = '123'
+        mock_site.pk = "123"
         mock_loc_get.return_value = mock_site
-        with patch('nautobot_topology.models.TopologyLayout.objects.get') as mock_layout_get:
+        with patch("nautobot_topology.models.TopologyLayout.objects.get") as mock_layout_get:
             mock_layout = MagicMock()
             mock_layout.layout_data = {"node1": {"x": 10, "y": 20}}
             mock_layout_get.return_value = mock_layout
-            response = self.client.get('/api/plugins/nautobot_topology/topology/123/layout/')
+            response = self.client.get("/api/plugins/nautobot_topology/topology/123/layout/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['status'], 'success')
-        self.assertEqual(response.data['data'], {"node1": {"x": 10, "y": 20}})
+        self.assertEqual(response.data["status"], "success")
+        self.assertEqual(response.data["data"], {"node1": {"x": 10, "y": 20}})
 
-    @patch('nautobot_topology.api.views.Location.objects.get')
+    @patch("nautobot_topology.api.views.Location.objects.get")
     def test_layout_get_no_saved_data_returns_empty(self, mock_loc_get):
         mock_site = MagicMock()
-        mock_site.pk = '123'
+        mock_site.pk = "123"
         mock_loc_get.return_value = mock_site
-        with patch('nautobot_topology.models.TopologyLayout.objects.get') as mock_layout_get:
+        with patch("nautobot_topology.models.TopologyLayout.objects.get") as mock_layout_get:
             from nautobot_topology.models import TopologyLayout
-            mock_layout_get.side_effect = TopologyLayout.DoesNotExist
-            response = self.client.get('/api/plugins/nautobot_topology/topology/123/layout/')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['status'], 'success')
-        self.assertEqual(response.data['data'], {"nodes": []})
 
-    @patch('nautobot_topology.api.views.Location.objects.get')
+            mock_layout_get.side_effect = TopologyLayout.DoesNotExist
+            response = self.client.get("/api/plugins/nautobot_topology/topology/123/layout/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "success")
+        self.assertEqual(response.data["data"], {"nodes": []})
+
+    @patch("nautobot_topology.api.views.Location.objects.get")
     def test_layout_site_not_found(self, mock_loc_get):
         import nautobot.dcim.models as dcim_models
+
         mock_loc_get.side_effect = dcim_models.Location.DoesNotExist
-        response = self.client.get('/api/plugins/nautobot_topology/topology/nope/layout/')
+        response = self.client.get("/api/plugins/nautobot_topology/topology/nope/layout/")
         self.assertEqual(response.status_code, 404)
 
 
@@ -254,19 +251,21 @@ class TopologyViewSetMetricsTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_superuser(
-            username='tv_metricsuser', email='tvmetrics@example.com', password='password'
+            username="tv_metricsuser", email="tvmetrics@example.com", password="password"
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
     def test_metrics_disabled(self):
-        with patch('nautobot_topology.api.views.getattr') as mock_getattr, \
-             patch('nautobot_topology.api.views.Location.objects.get') as mock_get:
-            mock_getattr.return_value.get.return_value = {'prometheus_enabled': False}
+        with (
+            patch("nautobot_topology.api.views.getattr") as mock_getattr,
+            patch("nautobot_topology.api.views.Location.objects.get") as mock_get,
+        ):
+            mock_getattr.return_value.get.return_value = {"prometheus_enabled": False}
             mock_get.return_value = MagicMock()
-            response = self.client.get('/api/plugins/nautobot_topology/topology/123/metrics/')
+            response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['data']['metrics'], {})
+        self.assertEqual(response.data["data"]["metrics"], {})
 
 
 class GetLocationsForSiteTest(TestCase):
