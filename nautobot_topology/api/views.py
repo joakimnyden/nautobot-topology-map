@@ -47,8 +47,9 @@ class TopologyViewSet(ViewSet):
         # Fetch sites, using annotate to get device counts in a single query
         # and select_related to get parent locations (Region/Country) efficiently.
         sites = Location.objects.filter(
-            location_type__name__icontains="site"
-        ).select_related('parent').annotate(
+            location_type__name__icontains="site",
+            devices__isnull=False
+        ).distinct().select_related('parent').annotate(
             device_count=Count('devices')
         )
         

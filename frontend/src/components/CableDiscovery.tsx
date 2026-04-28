@@ -46,25 +46,16 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
   // Fetch sites for standalone mode
   useEffect(() => {
     if (isStandalone) {
-      // Use Nautobot's native API to get all locations, so we don't miss locations without coordinates
-      fetch('/api/dcim/locations/?limit=1000', {
-        headers: {
-          'Accept': 'application/json'
-        }
-      })
+      // Use our filtered topology API instead of core DCIM locations
+      // This ensures we only see locations that have devices (based on our new filter)
+      fetch('/api/plugins/nautobot_topology/topology/')
         .then(res => res.json())
-        .then(data => {
-          if (data && data.results) {
-            // Filter locations that typically represent a "Site" or top-level area 
-            // OR just show all locations that have a name
-            const locationNodes = data.results.map((loc: any) => ({
-              id: loc.id,
-              name: loc.name
-            }));
-            setSites(locationNodes);
+        .then(response => {
+          if (response.status === 'success' && response.data.nodes) {
+            setSites(response.data.nodes);
           }
         })
-        .catch(err => console.error('Failed to fetch sites:', err));
+        .catch(err => console.error('Failed to fetch filtered sites:', err));
     }
   }, [isStandalone]);
 
