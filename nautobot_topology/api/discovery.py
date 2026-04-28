@@ -7,21 +7,34 @@ def get_device_credentials(device):
     if not device.secrets_group:
         raise ValueError(f"No secrets group assigned to device {device.name}")
         
-    username = device.secrets_group.get_secret_value(
-        access_type=SecretsGroupAccessTypeChoices.TYPE_GENERIC,
-        secret_type=SecretsGroupSecretTypeChoices.TYPE_USERNAME,
-        obj=device
-    )
-    password = device.secrets_group.get_secret_value(
-        access_type=SecretsGroupAccessTypeChoices.TYPE_GENERIC,
-        secret_type=SecretsGroupSecretTypeChoices.TYPE_PASSWORD,
-        obj=device
-    )
-    secret = device.secrets_group.get_secret_value(
-        access_type=SecretsGroupAccessTypeChoices.TYPE_GENERIC,
-        secret_type=SecretsGroupSecretTypeChoices.TYPE_SECRET,
-        obj=device
-    )
+    def get_val(secret_type):
+        # Try SSH and Console first, then fall back to Generic
+        for access_type in [
+            SecretsGroupAccessTypeChoices.TYPE_SSH, 
+            SecretsGroupAccessTypeChoices.TYPE_CONSOLE, 
+            SecretsGroupAccessTypeChoices.TYPE_GENERIC
+        ]:
+            try:
+                val = device.secrets_group.get_secret_value(
+                    access_type=access_type,
+                    secret_type=secret_type,
+                    obj=device
+                )
+                if val:
+                    return val
+            except Exception:
+                continue
+        return None
+
+    username = get_val(SecretsGroupSecretTypeChoices.TYPE_USERNAME)
+    password = get_val(SecretsGroupSecretTypeChoices.TYPE_PASSWORD)
+    secret = get_val(SecretsGroupSecretTypeChoices.TYPE_SECRET)
+    
+    if not username:
+        raise ValueError(f"Could not find 'username' in secrets group '{device.secrets_group.name}' (checked SSH, Console, Generic)")
+    if not password:
+        raise ValueError(f"Could not find 'password' in secrets group '{device.secrets_group.name}' (checked SSH, Console, Generic)")
+        
     return username, password, secret
 
 def guess_netmiko_device_type(device):
@@ -105,12 +118,14 @@ def discover_neighbors(device_id):
                     local_iface = entry.get("LOCAL_INTERFACE", entry.get("local_interface", ""))
                     remote_dev = entry.get("DESTINATION_HOST", entry.get("neighbor", entry.get("NEIGHBOR", "")))
                     remote_iface = entry.get("REMOTE_PORT", entry.get("neighbor_interface", entry.get("NEIGHBOR_INTERFACE", "")))
+                    remote_ip = entry.get("MANAGEMENT_IP", entry.get("management_ip", entry.get("ADDRESS", entry.get("address", ""))))
                     
                     if local_iface and remote_dev and remote_iface:
                         neighbors.append({
                             "local_interface": local_iface,
                             "remote_device": remote_dev.split(".")[0], # Strip domain names
                             "remote_interface": remote_iface,
+                            "remote_ip": remote_ip,
                             "protocol": "LLDP"
                         })
         except Exception as e:
@@ -125,12 +140,14 @@ def discover_neighbors(device_id):
                         local_iface = entry.get("LOCAL_PORT", entry.get("local_port", ""))
                         remote_dev = entry.get("DESTINATION_HOST", entry.get("destination_host", ""))
                         remote_iface = entry.get("REMOTE_PORT", entry.get("remote_port", ""))
+                        remote_ip = entry.get("MANAGEMENT_IP", entry.get("management_ip", entry.get("ADDRESS", entry.get("address", ""))))
                         
                         if local_iface and remote_dev and remote_iface:
                             neighbors.append({
                                 "local_interface": local_iface,
                                 "remote_device": remote_dev.split(".")[0],
                                 "remote_interface": remote_iface,
+                                "remote_ip": remote_ip,
                                 "protocol": "CDP"
                             })
             except Exception as e:
@@ -198,6 +215,7 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         local_iface_name = neighbor["local_interface"]
         remote_dev_name = neighbor["remote_device"]
         remote_iface_name = neighbor["remote_interface"]
+        remote_ip = neighbor.get("remote_ip")
         
         # 1. Try to find the local component (Interface, FrontPort, RearPort, ConsolePort, ConsoleServerPort)
         local_term_obj = None
@@ -242,11 +260,32 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
                 
         # 2. Try to find the remote device
         remote_dev_obj = None
-        # Try exact match first
+        
+        # Strategy A: Exact match
         possible_devices = Device.objects.filter(name=remote_dev_name)
+        
+        # Strategy B: Case-insensitive exact match
         if not possible_devices.exists():
-            # Fallback to case-insensitive and contains
-            possible_devices = Device.objects.filter(name__icontains=remote_dev_name)
+            possible_devices = Device.objects.filter(name__iexact=remote_dev_name)
+            
+        # Strategy C: Short name match (if remote_dev_name has a domain)
+        if not possible_devices.exists() and "." in remote_dev_name:
+            short_name = remote_dev_name.split(".")[0]
+            possible_devices = Device.objects.filter(name__iexact=short_name)
+            
+        # Strategy D: Check if any Nautobot device name contains this name as its hostname
+        if not possible_devices.exists():
+            # This handles case where remote_dev_name is "switch-01" but Nautobot has "switch-01.domain.com"
+            possible_devices = Device.objects.filter(name__istartswith=f"{remote_dev_name}.")
+            
+        # Strategy E: Match by IP address (if provided)
+        if not possible_devices.exists() and remote_ip:
+            # Check primary IPv4 and IPv6
+            possible_devices = Device.objects.filter(
+                primary_ip4__address__host=remote_ip
+            ) | Device.objects.filter(
+                primary_ip6__address__host=remote_ip
+            )
             
         if possible_devices.exists():
             remote_dev_obj = possible_devices.first()
@@ -282,6 +321,7 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
             "remote_interface_id": str(remote_term_obj.id) if remote_term_obj else None,
             "remote_interface_type": remote_term_type,
             "remote_lag": remote_lag_name,
+            "remote_ip": remote_ip,
             "protocol": neighbor["protocol"],
             "cable_exists": cable_exists,
             "is_matched": bool(local_term_obj and remote_dev_obj and remote_term_obj)
