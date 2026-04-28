@@ -13,6 +13,9 @@ class TopologyLayout(PrimaryModel):
     class Meta:
         verbose_name = "Topology Layout"
         verbose_name_plural = "Topology Layouts"
+        permissions = [
+            ("run_cablediscovery", "Can run cable discovery (LLDP/CDP)")
+        ]
 
     def __str__(self):
         return f"Layout for {self.site.name}"

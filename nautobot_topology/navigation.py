@@ -12,6 +12,11 @@ menu_items = (
                         name="Topology Map",
                         permissions=["nautobot_topology.view_topologylayout"],
                     ),
+                    NavMenuItem(
+                        link="plugins:nautobot_topology:discovery",
+                        name="Cable Discovery",
+                        permissions=["nautobot_topology.view_topologylayout"],
+                    ),
                 ),
             ),
         ),

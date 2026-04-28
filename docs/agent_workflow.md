@@ -7,11 +7,12 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 1. **Environment Setup & Calibration**: 
    - Check binaries: `export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"`
    - If `uv` is missing: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-   - Use `docker compose exec` instead of `run --rm` to maintain session state.
+   - Use `docker compose exec` to maintain session state.
 
 2. **Execute via Invoke**: 
    - NEVER type raw bash commands for standard development tasks. 
    - Use `uv run invoke [task_name]` (e.g., `start`, `stop`, `test`, `build-ui`).
+   - The `test` task is simplified to run as a single standard Nautobot test suite.
 
 3. **Mandatory Validation & QA**:
    - **Frontend Changes**: Always run `uv run invoke build-ui`.
@@ -42,20 +43,25 @@ Follow these steps strictly for *every* task to ensure consistency and stability
   - **Cable Discovery**: 
     - **Recursive Fetching**: Uses `/api/plugins/nautobot_topology/topology/<id>/devices/` to find all devices in Site/Location hierarchy (recursive).
     - **Scannable Filter**: Devices without a Primary IP are filtered out by default in the frontend.
-    - **Simulator**: Frontend-only simulation mode enabled via `discovery_simulator_enabled` in `nautobot_config.py`. Does not require `mock-switch` backend.
+    - **Simulator**: Hybrid simulation mode enabled via `discovery_simulator_enabled` in `nautobot_config.py`.
+      - **Frontend**: Adds a "✨ Discovery Simulator" device with hardcoded mock results.
+      - **Backend**: The `discover_neighbors` API returns simulated neighbors for *any* device using database lookups of nearby devices, bypassing SSH connectivity.
 - **Performance (10k+ nodes)**:
   - Pre-calculate `deviceMap` and `linkMap` in `useMemo` (O(1) lookups). NEVER use `.find()` on hot paths.
   - Use structured rank grids for datasets > 500 nodes instead of Dagre.
   - Separate topology processing (`topoNodes`, `topoEdges`) from high-frequency interactive updates using `useEffect` reconciliation.
   - Use React Flow's `onlyRenderVisibleElements={true}` and implement Level of Detail (LOD) zoom thresholds to cull DOM nodes.
-- **Edge Routing**: To prevent links from passing through node boxes, use a 4-handle system (Top, Bottom, Left, Right) with IDs like `s-t`, `t-t`. `useTopologyLayout` must dynamically assign `sourceHandle` and `targetHandle` based on relative node positions after layout calculation (e.g., primarily horizontal links use Left/Right handles).
+- **Edge Aggregation**: In high-density sites (> 1000 links), multiple cables between the same node pair are aggregated into a single visual edge with a count label (e.g., "x12 Cables").
+- **Leaf Stacking (ClusterNode)**: For sites with > 1000 nodes, all "leaf" nodes (exactly 1 neighbor) are automatically grouped into a `ClusterNode` (e.g., "Devices on Switch-01"). This prevents massive horizontal sprawl by collapsing thousands of leaf devices into single interactive clusters.
+- **Layout Sprawl**: To prevent horizontal graphs from exceeding massive dimensions (> 10k pixels), implement grid-based wrapping for nodes within the same rank when count exceeds 50.
+- **Edge Routing**: To prevent links from passing through node boxes, use a 4-handle system (Top, Bottom, Left, Right).
 
 ### Backend & Database (Nautobot 3.1.1)
 - **Persistence**: Topology node positions are stored in the `TopologyLayout` database model (O2O with `Location`). The API `/layout/` endpoint manages this.
 - **Development**: Use `docker-compose` with the volume mount `./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology` for real-time backend updates.
 - **Compatibility**: Python 3.11-3.14. PostgreSQL 14+. Django 5.2 (`indexes` instead of `index_together`, `assertQuerySetEqual`).
 - **Tree Queries**: ALWAYS evaluate `site.descendants()` querysets using `list(...values_list('id', flat=True))` to avoid PostgreSQL CTE subquery errors.
-- **Grouping Logic**: Unconnected devices are aggregated by location. Identification of Access Points (APs) for grouping and stacking is controlled by the `ap_role_name` plugin setting (Default: "Access Points", case-insensitive with "Access Point" fallback). Non-AP unconnected devices are aggregated into an "Other" group.
+- **Grouping Logic**: Unconnected devices are aggregated by location. Identification of Access Points (APs) for grouping and stacking is controlled by the `ap_role_name` plugin setting. For high-density sites, leaf stacking is applied generically to all device types via `ClusterNode` to maintain layout readability.
 - **Layout Ranks**: 0 (Firewall/Cloud) to 8 (Generic). Dagre layout uses `ranker: 'network-simplex'` to force top-to-bottom flow regardless of link direction.
 
 ## 4. Testing Standards (80% Coverage Required)

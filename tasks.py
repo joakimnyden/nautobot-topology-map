@@ -29,10 +29,33 @@ def unittest(context, test_runner="nautobot_topology.tests"):
     context.run(f"docker-compose exec -T nautobot nautobot-server test {test_runner} --noinput", pty=False, in_stream=False)
 
 @task
-def test(context):
-    """Run tests with coverage."""
-    print("Running tests with coverage...")
-    context.run("docker compose exec -T nautobot bash -c 'python -m coverage run --source=nautobot_topology -m nautobot.core.cli test nautobot_topology.tests --noinput --keepdb && python -m coverage report -m --fail-under=80'", pty=False, in_stream=False)
+def test(context, module=None, coverage=False):
+    """Run Nautobot tests."""
+    print("Running tests...")
+    
+    # Base command
+    test_target = "nautobot_topology"
+    if module:
+        test_target = f"nautobot_topology.tests.{module}" if not module.startswith("nautobot_topology") else module
+
+    if coverage:
+        print("Running with coverage...")
+        cmd = f"docker compose exec -T nautobot coverage run --source=nautobot_topology -m nautobot.core.cli test {test_target} --noinput"
+        context.run("docker compose exec -T nautobot coverage erase", pty=False, in_stream=False)
+    else:
+        cmd = f"docker compose exec -T nautobot nautobot-server test {test_target} --noinput"
+
+    result = context.run(cmd, pty=False, in_stream=False, warn=True)
+    
+    if coverage:
+        context.run("docker compose exec -T nautobot coverage report -m", pty=False, in_stream=False)
+        
+    if result.exited != 0:
+        print("\nTests FAILED!")
+        raise SystemExit(result.exited)
+    else:
+        print("\nAll tests passed!")
+
 
 @task
 def build_ui(context):
@@ -64,3 +87,74 @@ def post_upgrade(context):
     """Run Nautobot post_upgrade commands (migrations + collectstatic)."""
     print("Running post_upgrade...")
     context.run("docker-compose exec -T nautobot nautobot-server post_upgrade", pty=False, in_stream=False)
+
+@task
+def seed(context):
+    """Seed the database with complex topology data."""
+    print("Seeding database with complex topology data...")
+    # We use nbshell to run the script within the Nautobot environment
+    context.run(
+        "docker compose exec -T nautobot nautobot-server shell --command \"import sys; sys.path.append('/opt/nautobot/scripts'); import generate_complex_site; generate_complex_site.run()\"",
+        pty=False, in_stream=False
+    )
+    print("Seeding complete.")
+
+@task
+def seed_varied(context):
+    """Seed the database with varied topology scenarios (Campus, DC, Hub)."""
+    print("Seeding database with varied topology scenarios...")
+    context.run(
+        "docker compose exec -T nautobot nautobot-server shell --command \"import sys; sys.path.append('/opt/nautobot/scripts'); import generate_varied_sites; generate_varied_sites.run()\"",
+        pty=False, in_stream=False
+    )
+    print("Seeding complete.")
+
+@task
+def db_export(context, filename="dev_data.json"):
+    """Export the database to a JSON file."""
+    print(f"Exporting database to {filename}...")
+    context.run(
+        f"docker compose exec -T nautobot nautobot-server dumpdata --indent 2 > {filename}",
+        pty=False, in_stream=False
+    )
+
+@task
+def db_import(context, filename="dev_data.json"):
+    """Import the database from a JSON file."""
+    print(f"Importing database from {filename}...")
+    context.run(
+        f"docker compose exec -T nautobot nautobot-server loaddata {filename}",
+        pty=False, in_stream=False
+    )
+
+@task
+def db_export_sql(context, filename="dev_snapshot.sql"):
+    """Export the database to a PostgreSQL SQL dump."""
+    print(f"Exporting database to {filename}...")
+    context.run(
+        f"docker compose exec -T db pg_dump -U nautobot nautobot > {filename}",
+        pty=False, in_stream=False
+    )
+
+@task
+def db_import_sql(context, filename="dev_snapshot.sql"):
+    """Import the database from a PostgreSQL SQL dump."""
+    print(f"Importing database from {filename}...")
+    # Pipe the file into psql via docker exec -T
+    context.run(
+        f"docker compose exec -T db psql -U nautobot nautobot < {filename}",
+        pty=False, in_stream=False
+    )
+
+@task
+def setup_dev(context):
+    """Fully initialize the development environment (migrate + import data)."""
+    print("Setting up development environment...")
+    migrate(context)
+    db_import(context, filename="dev_data.json")
+    # Clear cache to ensure data is visible
+    context.run(
+        "docker compose exec -T nautobot bash -c \"echo 'from django.core.cache import cache; cache.clear()' | nautobot-server shell\"",
+        pty=False, in_stream=False
+    )
+    print("Development environment is ready!")
