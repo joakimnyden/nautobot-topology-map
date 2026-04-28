@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'nautobot_topology/assets/index.css' %}?v={{ timestamp|default:'2' }}">
+{% csrf_token %}
+<script>
+    window.NAUTOBOT_PAGE = 'discovery';
+    window.NAUTOBOT_SIMULATOR_ENABLED = "{{ discovery_simulator_enabled|yesno:'true,false' }}" === "true";
+</script>
+<div id="root"></div>
+<script type="module" src="{% static 'nautobot_topology/assets/index.js' %}?v={{ timestamp|default:'2' }}"></script>
+{% endblock %}

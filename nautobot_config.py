@@ -43,8 +43,7 @@ PLUGINS = ["nautobot_topology", "nautobot_bgp_models"]
 # Each key in the dictionary is the name of an installed plugin and its value is a dictionary of settings.
 PLUGINS_CONFIG = {
     "nautobot_topology": {
-        "prometheus_enabled": True,
-        "prometheus_url": "mock",
+        "prometheus_enabled": False,
         "topology_style": "fancy",
         "cache_timeout": 300,
         "discovery_simulator_enabled": True,
@@ -58,8 +57,17 @@ ALLOWED_HOSTS = os.environ.get("NAUTOBOT_ALLOWED_HOSTS", "*").split(",")
 DEBUG = os.environ.get("NAUTOBOT_DEBUG", "True") == "True"
 
 # Static files
-STATIC_ROOT = "/opt/nautobot/static"
+STATIC_ROOT = os.environ.get("NAUTOBOT_STATIC_ROOT", "/opt/nautobot/static")
+if TESTING:
+    STATIC_ROOT = "/tmp/static"
 MEDIA_ROOT = "/opt/nautobot/media"
 
 # Genrate mocked data for tests
 TEST_USE_FACTORIES = True
+
+# Allow overriding test database name
+if TESTING:
+    test_db_name = os.getenv("NAUTOBOT_TEST_DB_NAME")
+    if test_db_name:
+        DATABASES["default"]["TEST"] = {"NAME": test_db_name}
+

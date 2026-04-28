@@ -1,4 +1,4 @@
-version: "3.8"
+# Docker Compose configuration
 
 services:
   db:
@@ -38,22 +38,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # environment:
-    #   - NAUTOBOT_DB_HOST=postgres
-    #   - NAUTOBOT_DB_NAME=nautobot
-    #   - NAUTOBOT_DB_USER=nautobot
-    #   - NAUTOBOT_DB_PASSWORD=nautobot
-    #   - NAUTOBOT_REDIS_HOST=redis
-    #   - NAUTOBOT_REDIS_PASSWORD=nautobot
-    #   - NAUTOBOT_SECRET_KEY=dummy_secret_key_for_testing
-    #   - NAUTOBOT_ALLOWED_HOSTS=*
     env_file:
       - ".env.cred.example"
       - ".env.local.example"
     volumes:
       - "./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology"
       - "./nautobot_config.py:/opt/nautobot/nautobot_config.py"
-    command: "nautobot-server runserver 0.0.0.0:8080"
+      - "./dev_data.json:/opt/nautobot/dev_data.json"
+    entrypoint: ""
+    command: >
+      sh -c "nautobot-server post_upgrade &&
+             nautobot-server loaddata /opt/nautobot/dev_data.json &&
+             nautobot-server runserver 0.0.0.0:8080"
 
   celery:
     image: nautobot-topology:local
@@ -62,20 +58,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # environment:
-    #   - NAUTOBOT_DB_HOST=postgres
-    #   - NAUTOBOT_DB_NAME=nautobot
-    #   - NAUTOBOT_DB_USER=nautobot
-    #   - NAUTOBOT_DB_PASSWORD=nautobot
-    #   - NAUTOBOT_REDIS_HOST=redis
-    #   - NAUTOBOT_REDIS_PASSWORD=nautobot
-    #   - NAUTOBOT_SECRET_KEY=dummy_secret_key_for_testing
     env_file:
       - ".env.cred.example"
       - ".env.local.example"
     volumes:
       - "./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology"
       - "./nautobot_config.py:/opt/nautobot/nautobot_config.py"
+    entrypoint: ""
     command: "nautobot-server celery worker -l INFO"
 
 volumes:

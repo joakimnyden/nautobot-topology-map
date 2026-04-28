@@ -57,8 +57,17 @@ def guess_netmiko_device_type(device):
         
     return "cisco_ios" # Default fallback
 
+from django.conf import settings
+import random
+
 def discover_neighbors(device_id):
     device = Device.objects.get(id=device_id)
+    
+    # Check for simulator setting
+    plugin_config = settings.PLUGINS_CONFIG.get('nautobot_topology', {})
+    if plugin_config.get('discovery_simulator_enabled', False):
+        # Return simulated neighbors for the device
+        return simulate_neighbors(device)
     
     ip_address = None
     if device.primary_ip4:
@@ -128,6 +137,38 @@ def discover_neighbors(device_id):
                 pass
                 
     return standardize_and_match_neighbors(device, neighbors)
+
+def simulate_neighbors(device):
+    """Simulate neighbors for a device by looking at other devices in the same location."""
+    # Find some other devices in the same location to link to
+    potential_neighbors = Device.objects.filter(location=device.location).exclude(id=device.id)[:3]
+    
+    raw_neighbors = []
+    interfaces = list(device.interfaces.all()[:3])
+    
+    protocols = ["LLDP", "CDP"]
+    
+    for i, remote_dev in enumerate(potential_neighbors):
+        if i < len(interfaces):
+            remote_iface = remote_dev.interfaces.first()
+            if remote_iface:
+                raw_neighbors.append({
+                    "local_interface": interfaces[i].name,
+                    "remote_device": remote_dev.name,
+                    "remote_interface": remote_iface.name,
+                    "protocol": random.choice(protocols)
+                })
+    
+    # Add one unknown neighbor
+    if interfaces:
+        raw_neighbors.append({
+            "local_interface": random.choice(interfaces).name,
+            "remote_device": "unconfigured-switch-01",
+            "remote_interface": "GigabitEthernet0/1",
+            "protocol": "LLDP"
+        })
+        
+    return standardize_and_match_neighbors(device, raw_neighbors)
 
 def normalize_interface_name(name):
     """Normalize interface names for better matching (e.g., Gi1/0/1 -> GigabitEthernet1/0/1)."""

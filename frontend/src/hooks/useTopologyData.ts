@@ -12,6 +12,7 @@ interface UseTopologyDataProps {
   lod: number;
   showInterfaces: boolean;
   selectedEdgeId: string | null;
+  selectedNodeId: string | null;
   hoveredEdgeId: string | null;
   showTraffic: boolean;
   linkMetrics: Record<string, any>;
@@ -29,6 +30,7 @@ export function useTopologyData({
   lod,
   showInterfaces,
   selectedEdgeId,
+  selectedNodeId,
   hoveredEdgeId,
   showTraffic,
   linkMetrics,
@@ -70,7 +72,8 @@ export function useTopologyData({
     const nodes: Node[] = [];
     const apiDevices = validDevices.filter(d => !d.type || d.type === 'device');
     const apiGroups = validDevices.filter(d => d.type === 'group');
-    // Groups
+
+    // 1. Process Groups (Unconnected locations)
     apiGroups.forEach(group => {
       nodes.push({
         id: group.id,
@@ -86,43 +89,81 @@ export function useTopologyData({
         position: { x: 0, y: 0 },
       });
     });
-    // AP Stacking Logic
-    const apNodesList = apiDevices.filter(d => isAP(d.role, apRoleName));
-    const nonAPNodesList = apiDevices.filter(d => !isAP(d.role, apRoleName));
-    
-    const apStackGroups = new Map<string, Device[]>();
-    const unconAPs: Device[] = [];
-    
-    apNodesList.forEach(ap => {
-      const linksToAP = linksByDevice.get(ap.id) || [];
-      let parentId: string | null = null;
-      for (const l of linksToAP) {
-        const otherId = String(l.source) === ap.id ? String(l.target) : String(l.source);
-        const otherDevice = deviceMap.get(otherId);
-        if (otherDevice && !isAP(otherDevice.role, apRoleName)) {
-          parentId = otherId;
-          break;
-        }
-      }
+
+    // 2. Generic Leaf Stacking Logic
+    // Groups devices that only have ONE neighbor.
+    const leafStackGroups = new Map<string, Device[]>();
+    const unconNodes: Device[] = [];
+    const mainNodesList: Device[] = [];
+
+    apiDevices.forEach(device => {
+      const isAPDevice = isAP(device.role, apRoleName);
+      const linksToDevice = linksByDevice.get(device.id) || [];
+      const neighbors = new Set(linksToDevice.map(l => String(l.source) === device.id ? String(l.target) : String(l.source)));
       
-      if (parentId) {
-        if (!apStackGroups.has(parentId)) apStackGroups.set(parentId, []);
-        apStackGroups.get(parentId)!.push(ap);
+      // Candidate for stacking if:
+      // - It is an AP with a parent.
+      // - OR it has exactly ONE neighbor and site is dense (> 1000 nodes).
+      const isLeaf = neighbors.size === 1;
+      const shouldAttemptStack = isAPDevice || (apiDevices.length > 1000 && isLeaf);
+
+      if (shouldAttemptStack && neighbors.size > 0) {
+        const parentId = Array.from(neighbors)[0];
+        if (!leafStackGroups.has(parentId)) leafStackGroups.set(parentId, []);
+        leafStackGroups.get(parentId)!.push(device);
+      } else if (isAPDevice && neighbors.size === 0) {
+        unconNodes.push(device);
       } else {
-        unconAPs.push(ap);
+        mainNodesList.push(device);
       }
     });
-    // Individual Devices
-    nonAPNodesList.forEach(device => {
+
+    // Create Stack Nodes
+    leafStackGroups.forEach((groupNodes, parentId) => {
+      const parentDevice = deviceMap.get(parentId);
+      if (groupNodes.length === 1) {
+        mainNodesList.push(groupNodes[0]);
+      } else {
+        const stackId = `stack-${parentId}`;
+        nodes.push({
+          id: stackId,
+          type: 'cluster',
+          style: { background: 'transparent', border: 'none' },
+          data: { 
+            count: groupNodes.length, 
+            parentName: parentDevice?.name, 
+            devices: groupNodes,
+            iconStyle,
+            lod: lod
+          },
+          position: { x: 0, y: 0 },
+        });
+      }
+    });
+
+    // Create Unconnected Stack
+    if (unconNodes.length > 0) {
+      nodes.push({
+        id: 'stack-unconnected',
+        type: 'cluster',
+        style: { background: 'transparent', border: 'none' },
+        data: { count: unconNodes.length, parentName: undefined, devices: unconNodes, iconStyle, lod },
+        position: { x: 0, y: 0 },
+      });
+    }
+
+    // Create Individual Device Nodes
+    mainNodesList.forEach(device => {
       let isHighlighted = false;
       if (filterValue) {
-        if (filterType === 'vlan') isHighlighted = device.vlans?.some(v => v.toString() === query) || false;
-        if (filterType === 'protocol') isHighlighted = device.protocols?.some(p => p.toLowerCase().includes(query)) || false;
-        if (filterType === 'prefix') isHighlighted = device.prefixes?.some(p => p.includes(query)) || false;
+        const q = filterValue.toLowerCase();
+        if (filterType === 'vlan') isHighlighted = device.vlans?.some(v => v.toString() === q) || false;
+        if (filterType === 'protocol') isHighlighted = device.protocols?.some(p => p.toLowerCase().includes(q)) || false;
+        if (filterType === 'prefix') isHighlighted = device.prefixes?.some(p => p.includes(q)) || false;
         if (filterType === 'all') {
-          isHighlighted = device.name.toLowerCase().includes(query) ||
-            device.vlans?.some(v => v.toString() === query) ||
-            device.protocols?.some(p => p.toLowerCase().includes(query)) || false;
+          isHighlighted = device.name.toLowerCase().includes(q) ||
+            device.vlans?.some(v => v.toString() === q) ||
+            device.protocols?.some(p => p.toLowerCase().includes(q)) || false;
         }
       }
       nodes.push({
@@ -132,167 +173,181 @@ export function useTopologyData({
         position: { x: 0, y: 0 },
       });
     });
-    // AP Stacks
-    apStackGroups.forEach((groupAPs, parentId) => {
-      const parentDevice = deviceMap.get(parentId);
-      if (groupAPs.length === 1) {
-        const device = groupAPs[0];
-        nodes.push({
-          id: device.id,
-          type: 'device',
-          data: { device, isHighlighted: false, hasQuery: !!filterValue, iconMode, iconStyle, lod: lod, onHover: onDeviceHover },
-          position: { x: 0, y: 0 },
-        });
-      } else {
-        const stackId = `stack-${parentId}`;
-        nodes.push({
-          id: stackId,
-          type: 'apStack',
-          style: { background: 'transparent', border: 'none' },
-          data: { 
-            count: groupAPs.length, 
-            parentName: parentDevice?.name, 
-            devices: groupAPs,
-            iconStyle,
-            lod: lod
-          },
-          position: { x: 0, y: 0 },
-        });
-      }
-    });
-    if (unconAPs.length > 0) {
-      nodes.push({
-        id: 'stack-unconnected',
-        type: 'apStack',
-        style: { background: 'transparent', border: 'none' },
-        data: { count: unconAPs.length, parentName: undefined, devices: unconAPs, iconStyle, lod },
-        position: { x: 0, y: 0 },
-      });
-    }
+
     return nodes;
   }, [validDevices, devices, links, filterType, filterValue, iconMode, iconStyle, lod, deviceMap, linksByDevice, onDeviceHover, apRoleName]);
+
   // topoEdges calculation
   const topoEdges = useMemo(() => {
     const query = filterValue.toLowerCase();
     const edges: Edge[] = [];
-    const apDevices = validDevices.filter(d => !d.type || d.type === 'device').filter(d => isAP(d.role, apRoleName));
-    const apToParentMap = new Map<string, string>();
     
-    apDevices.forEach(ap => {
-      const linksToAP = linksByDevice.get(ap.id) || [];
-      for (const l of linksToAP) {
-        const otherId = String(l.source) === ap.id ? String(l.target) : String(l.source);
-        const otherDevice = deviceMap.get(otherId);
-        if (otherDevice && !isAP(otherDevice.role, apRoleName)) {
-          apToParentMap.set(ap.id, otherId);
-          break;
-        }
+    // 1. Identify which nodes are in stacks to redirect edges
+    const nodeToStackMap = new Map<string, string>();
+    const stackCounts = new Map<string, number>();
+
+    const apiDevices = validDevices.filter(d => !d.type || d.type === 'device');
+    apiDevices.forEach(device => {
+      const isAPDevice = isAP(device.role, apRoleName);
+      const linksToDevice = linksByDevice.get(device.id) || [];
+      const neighbors = new Set(linksToDevice.map(l => String(l.source) === device.id ? String(l.target) : String(l.source)));
+      const isLeaf = neighbors.size === 1;
+      const shouldAttemptStack = isAPDevice || (apiDevices.length > 1000 && isLeaf);
+
+      if (shouldAttemptStack && neighbors.size > 0) {
+        const parentId = Array.from(neighbors)[0];
+        nodeToStackMap.set(device.id, `stack-${parentId}`);
       }
     });
-    const apStacksCount = new Map<string, number>();
-    apToParentMap.forEach((parentId) => {
-      apStacksCount.set(parentId, (apStacksCount.get(parentId) || 0) + 1);
+
+    nodeToStackMap.forEach((stackId) => {
+      stackCounts.set(stackId, (stackCounts.get(stackId) || 0) + 1);
     });
-    apStacksCount.forEach((count, parentId) => {
+
+    // Create edges for stacks
+    stackCounts.forEach((count, stackId) => {
       if (count > 1) {
-        const stackId = `stack-${parentId}`;
+        const parentId = stackId.replace('stack-', '');
         edges.push({
           id: `edge-${stackId}`,
           source: parentId,
           target: stackId,
           type: 'smoothstep',
-          label: `${count} APs`,
+          label: `${count} Devices`,
           style: { stroke: '#10b981', strokeWidth: 3, opacity: 0.8 },
           labelStyle: { fill: '#10b981', fontSize: 10, fontWeight: 700 },
           labelBgStyle: { fill: '#0f172a', fillOpacity: 0.95, rx: 4 },
         });
       }
     });
-    const edgeCounts = new Map<string, number>();
-    
+
+    // 2. Group links by node pairs to handle multi-links and aggregation
+    const linkGroups = new Map<string, Link[]>();
     links.forEach(link => {
-      const sId = String(link.source);
-      const tId = String(link.target);
+      let s = String(link.source);
+      let t = String(link.target);
+      
+      const sStack = nodeToStackMap.get(s);
+      if (sStack && (stackCounts.get(sStack) || 0) > 1) return;
+      const tStack = nodeToStackMap.get(t);
+      if (tStack && (stackCounts.get(tStack) || 0) > 1) return;
+
+      const key = [s, t].sort().join('--');
+      if (!linkGroups.has(key)) linkGroups.set(key, []);
+      linkGroups.get(key)!.push(link);
+    });
+
+    // 3. Process remaining link groups and create edges
+    linkGroups.forEach((group, pairKey) => {
+      const [sId, tId] = pairKey.split('--');
       const sourceDev = deviceMap.get(sId);
       const targetDev = deviceMap.get(tId);
+      
       if (!sourceDev || !targetDev) return;
-      
-      if (isAP(sourceDev.role, apRoleName)) {
-        const parentId = apToParentMap.get(sId);
-        if (parentId && (apStacksCount.get(parentId) || 0) > 1) return;
+
+      const shouldAggregate = links.length > 1000 && group.length > 1;
+
+      if (shouldAggregate) {
+        const isSelected = group.some(l => l.id === selectedEdgeId);
+        const hasHovered = group.some(l => l.id === hoveredEdgeId);
+        const hasLogical = group.some(l => l.type === 'logical');
+        const hasLAG = group.some(l => l.isPortChannel);
+
+        edges.push({
+          id: `agg-${pairKey}`,
+          source: sId,
+          target: tId,
+          type: links.length > 500 ? 'straight' : 'smoothstep',
+          hidden: zoom < 0.15 && links.length > 2000,
+          label: zoom > 0.4 ? `x${group.length} Cables` : undefined,
+          data: { curvature: 0 },
+          labelStyle: {
+            fill: (hasHovered || isSelected) ? '#fbbf24' : '#94a3b8',
+            fontSize: 10,
+            fontWeight: 800,
+            fontFamily: 'var(--font-mono)'
+          },
+          labelBgStyle: { fill: '#0f172a', fillOpacity: 0.95, rx: 4 },
+          style: {
+            stroke: (hasHovered || isSelected) ? '#fbbf24' : (hasLAG ? '#818cf8' : '#475569'),
+            strokeWidth: 3 + Math.min(group.length, 5),
+            opacity: (filterValue || selectedEdgeId || selectedNodeId) && !hasHovered && !isSelected ? 0.3 : 0.8,
+            strokeDasharray: hasLogical && !hasLAG ? '8,4' : 'none',
+            filter: (hasHovered || isSelected) ? `drop-shadow(0 0 8px #fbbf24)` : 'none',
+          },
+        });
+      } else {
+        group.forEach((link, edgeIndex) => {
+          let isEdgeHighlighted = link.id === hoveredEdgeId;
+          if (filterValue) {
+            if (filterType === 'vlan') isEdgeHighlighted = isEdgeHighlighted || (link.vlan?.toString() === query);
+            if (filterType === 'protocol') isEdgeHighlighted = isEdgeHighlighted || (link.protocol?.toLowerCase().includes(query));
+          }
+          
+          const isSelected = link.id === selectedEdgeId;
+          const isLogical = link.type === 'logical';
+          
+          let label = link.protocol;
+          if (showInterfaces || isSelected) {
+            const sourcePort = link.isPortChannel && link.lagMembers
+              ? `${formatInterfaceName(link.sourceInterface || '')} [${link.lagMembers.map(m => formatInterfaceName(m.sourceInterface)).join(', ')}]`
+              : formatInterfaceName(link.sourceInterface || '');
+            const targetPort = link.isPortChannel && link.lagMembers
+              ? `${formatInterfaceName(link.targetInterface || '')} [${link.lagMembers.map(m => formatInterfaceName(m.targetInterface)).join(', ')}]`
+              : formatInterfaceName(link.targetInterface || '');
+            label = isSelected
+              ? `${sourcePort} ↔ ${targetPort}${link.nautobotUrl ? ' 🔗' : ''}`
+              : `${formatInterfaceName(link.sourceInterface || '')} ↔ ${formatInterfaceName(link.targetInterface || '')}`;
+          }
+
+          const isRelatedToSelection = sId === selectedNodeId || tId === selectedNodeId;
+          
+          const sourceRole = sourceDev.role.toLowerCase();
+          const targetRole = targetDev.role.toLowerCase();
+          const isSpineLeafOrCoreDist = (
+            (sourceRole.includes('spine') && targetRole.includes('leaf')) ||
+            (sourceRole.includes('leaf') && targetRole.includes('spine')) ||
+            (sourceRole.includes('core') && (targetRole.includes('dist') || targetRole.includes('distribution'))) ||
+            (targetRole.includes('core') && (sourceRole.includes('dist') || sourceRole.includes('distribution'))) ||
+            (sourceRole.includes('core') && targetRole.includes('core'))
+          );
+
+          const forceStraight = link.isPortChannel || (link.type === 'physical' && isSpineLeafOrCoreDist);
+          const edgeType = isLogical || (group.length > 1) ? 'bezier' : (forceStraight ? 'straight' : (links.length > 500 ? 'straight' : 'smoothstep'));
+
+          edges.push({
+            id: link.id,
+            source: sId,
+            target: tId,
+            type: edgeType,
+            hidden: links.length > 5000 && zoom < 0.1,
+            animated: (link.id === hoveredEdgeId || isSelected || isRelatedToSelection || (isEdgeHighlighted && links.length < 500)) && !link.isPortChannel && (link.type !== 'physical' || isRelatedToSelection || isSelected),
+            label: links.length > 1500 && !isSelected && !isRelatedToSelection ? undefined : label,
+            data: { curvature: isLogical ? (edgeIndex % 2 === 0 ? 0.35 : -0.35) : (edgeIndex === 0 || forceStraight ? 0 : (edgeIndex % 2 === 0 ? 0.2 : -0.2)) },
+            labelStyle: {
+              fill: isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : (link.type === 'physical' ? '#94a3b8' : (link.type === 'port-channel' ? '#a5b4fc' : '#10b981'))),
+              fontSize: (showInterfaces || isSelected) ? 8 : 10,
+              fontWeight: 800,
+              fontFamily: 'var(--font-mono)'
+            },
+            labelBgStyle: { fill: '#0f172a', fillOpacity: 0.95, rx: 4 },
+            style: {
+              stroke: (showTraffic && linkMetrics[link.id]) 
+                ? (linkMetrics[link.id].utilization < 50 ? '#10b981' : (linkMetrics[link.id].utilization < 80 ? '#fbbf24' : '#ef4444'))
+                : (isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : (link.type === 'physical' ? '#475569' : (link.type === 'port-channel' ? '#818cf8' : '#10b981')))),
+              strokeWidth: link.isPortChannel ? 5 : (isEdgeHighlighted ? 5 : (isSelected || isRelatedToSelection ? 4 : (link.type === 'physical' ? 2 : 1.5))),
+              opacity: (filterValue || selectedEdgeId || selectedNodeId) && !isEdgeHighlighted && !isSelected && !isRelatedToSelection ? 0.2 : 1,
+              strokeDasharray: isLogical ? '8,4' : 'none',
+              filter: (link.type === 'port-channel' || isEdgeHighlighted || isSelected || isRelatedToSelection) 
+                ? `drop-shadow(0 0 8px ${isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : '#818cf8')})` 
+                : 'none',
+            },
+          });
+        });
       }
-      if (isAP(targetDev.role, apRoleName)) {
-        const parentId = apToParentMap.get(tId);
-        if (parentId && (apStacksCount.get(parentId) || 0) > 1) return;
-      }
-
-      if (links.length > 5000 && edges.length > 5000) return;
-
-      const pairKey = [sId, tId].sort().join('-');
-      const edgeIndex = edgeCounts.get(pairKey) || 0;
-      edgeCounts.set(pairKey, edgeIndex + 1);
-
-      let isEdgeHighlighted = link.id === hoveredEdgeId;
-      if (filterValue) {
-        if (filterType === 'vlan') isEdgeHighlighted = isEdgeHighlighted || (link.vlan?.toString() === query);
-        if (filterType === 'protocol') isEdgeHighlighted = isEdgeHighlighted || (link.protocol?.toLowerCase().includes(query));
-      }
-      
-      const isSelected = link.id === selectedEdgeId;
-      const isLogical = link.type === 'logical';
-      
-      let label = link.protocol;
-      if (showInterfaces || isSelected) {
-        const sourcePort = link.isPortChannel && link.lagMembers
-          ? `${formatInterfaceName(link.sourceInterface || '')} [${link.lagMembers.map(m => formatInterfaceName(m.sourceInterface)).join(', ')}]`
-          : formatInterfaceName(link.sourceInterface || '');
-        const targetPort = link.isPortChannel && link.lagMembers
-          ? `${formatInterfaceName(link.targetInterface || '')} [${link.lagMembers.map(m => formatInterfaceName(m.targetInterface)).join(', ')}]`
-          : formatInterfaceName(link.targetInterface || '');
-        label = isSelected
-          ? `${sourcePort} ↔ ${targetPort}${link.nautobotUrl ? ' 🔗' : ''}`
-          : `${formatInterfaceName(link.sourceInterface || '')} ↔ ${formatInterfaceName(link.targetInterface || '')}`;
-      }
-
-      // Use different edge types to prevent overlap
-      // Multi-edges or logical edges get a bezier curve
-      const useBezier = isLogical || edgeIndex > 0;
-      const edgeType = useBezier ? 'bezier' : (link.isPortChannel ? 'straight' : (links.length > 100 ? 'straight' : 'smoothstep'));
-
-      edges.push({
-        id: link.id,
-        source: sId,
-        target: tId,
-        type: edgeType,
-        hidden: links.length > 8000 && zoom < 0.2,
-        animated: (link.id === hoveredEdgeId || isSelected || (isEdgeHighlighted && links.length < 500)) && !link.isPortChannel,
-        label: links.length > 2000 ? undefined : label,
-        data: {
-          // Curvature logic: alternate sides and increase depth
-          curvature: isLogical ? (edgeIndex % 2 === 0 ? 0.35 : -0.35) : (edgeIndex === 0 ? 0 : (edgeIndex % 2 === 0 ? 0.2 : -0.2))
-        },
-        labelStyle: {
-          fill: isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : (link.type === 'physical' ? '#94a3b8' : (link.type === 'port-channel' ? '#a5b4fc' : '#10b981'))),
-          fontSize: (showInterfaces || isSelected) ? 8 : 10,
-          fontWeight: 800,
-          fontFamily: 'var(--font-mono)'
-        },
-        labelBgStyle: { fill: '#0f172a', fillOpacity: 0.95, rx: 4 },
-        style: {
-          stroke: (showTraffic && linkMetrics[link.id]) 
-            ? (linkMetrics[link.id].utilization < 50 ? '#10b981' : (linkMetrics[link.id].utilization < 80 ? '#fbbf24' : '#ef4444'))
-            : (isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : (link.type === 'physical' ? '#475569' : (link.type === 'port-channel' ? '#818cf8' : '#10b981')))),
-          strokeWidth: link.isPortChannel ? 5 : (isEdgeHighlighted ? 5 : (isSelected ? 4 : (link.type === 'physical' ? 2 : 1.5))),
-          opacity: (filterValue || selectedEdgeId) && !isEdgeHighlighted && !isSelected ? 0.4 : 1,
-          strokeDasharray: isLogical ? '8,4' : 'none',
-          filter: (link.type === 'port-channel' || isEdgeHighlighted || isSelected) 
-            ? `drop-shadow(0 0 6px ${isEdgeHighlighted ? '#fbbf24' : (isSelected ? '#3b82f6' : '#818cf8')})` 
-            : 'none',
-        },
-      });
     });
 
     return edges;
-  }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom, apRoleName]);
+  }, [validDevices, devices, deviceMap, links, linksByDevice, filterType, filterValue, showInterfaces, selectedEdgeId, selectedNodeId, hoveredEdgeId, showTraffic, linkMetrics, lod, zoom, apRoleName]);
   return { validDevices, deviceMap, linkMap, linksByDevice, topoNodes, topoEdges };
 }

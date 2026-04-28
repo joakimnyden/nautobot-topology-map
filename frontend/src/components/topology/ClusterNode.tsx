@@ -3,7 +3,8 @@ import { Handle, Position } from '@xyflow/react';
 import { Layers, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Device } from '../../types';
-interface APStackNodeProps {
+
+interface ClusterNodeProps {
   data: {
     count: number,
     parentName?: string,
@@ -12,10 +13,12 @@ interface APStackNodeProps {
     lod: number
   };
 }
-export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
+
+export const ClusterNode = React.memo(({ data }: ClusterNodeProps) => {
   const { count, parentName, devices, iconStyle, lod } = data;
   const isFancy = iconStyle === 'fancy';
   const [expanded, setExpanded] = useState(false);
+
   if (lod === 0) {
     return (
       <div 
@@ -33,6 +36,7 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
       </div>
     );
   }
+
   return (
     <div className="relative flex flex-col items-center gap-2 group w-[120px]">
       <div 
@@ -55,16 +59,19 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
             </div>
           )}
         </div>
+
         <Handle type="source" position={Position.Top} id="s-t" className="!opacity-0 !w-0 !h-0" />
         <Handle type="source" position={Position.Bottom} id="s-b" className="!opacity-0 !w-0 !h-0" />
         <Handle type="source" position={Position.Left} id="s-l" className="!opacity-0 !w-0 !h-0" />
         <Handle type="source" position={Position.Right} id="s-r" className="!opacity-0 !w-0 !h-0" />
       </div>
+
       {lod >= 2 && (
         <p className="text-[10px] font-bold text-slate-400 tracking-tight text-center truncate max-w-[120px] group-hover:text-white transition-colors">
-          {parentName ? `APs on ${parentName}` : `Unconnected APs`}
+          {parentName ? `Devices on ${parentName}` : `Unconnected Devices`}
         </p>
       )}
+
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -74,7 +81,7 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
             className={`absolute top-full mt-2 z-[1000] w-64 border rounded-xl overflow-hidden shadow-2xl pointer-events-auto ${isFancy ? 'bg-slate-900/95 backdrop-blur-xl border-slate-700/50' : 'bg-slate-900 border-slate-700'}`}
           >
             <div className="p-3 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
-               <span className="text-xs font-bold text-white tracking-wider">{parentName ? `APs on ${parentName}` : 'Unconnected APs'}</span>
+               <span className="text-xs font-bold text-white tracking-wider">{parentName ? `Devices on ${parentName}` : 'Unconnected Devices'}</span>
                <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded-md font-mono">{count} items</span>
             </div>
             <div className="max-h-48 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 pointer-events-auto nowheel nodrag">
@@ -93,7 +100,7 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
                     )}
                   </div>
                   <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-[9px] text-slate-500 uppercase font-bold">{dev.role || 'Access Point'}</span>
+                    <span className="text-[9px] text-slate-500 uppercase font-bold">{dev.role || 'Device'}</span>
                     <span className="text-[9px] font-mono text-emerald-400">{dev.primaryIp || ''}</span>
                   </div>
                 </a>
@@ -110,4 +117,5 @@ export const APStackNode = React.memo(({ data }: APStackNodeProps) => {
     </div>
   );
 });
-APStackNode.displayName = 'APStackNode';
+
+ClusterNode.displayName = 'ClusterNode';

@@ -46,11 +46,22 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
   // Fetch sites for standalone mode
   useEffect(() => {
     if (isStandalone) {
-      fetch('/api/plugins/nautobot_topology/topology/')
+      // Use Nautobot's native API to get all locations, so we don't miss locations without coordinates
+      fetch('/api/dcim/locations/?limit=1000', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
         .then(res => res.json())
-        .then(response => {
-          if (response.status === 'success') {
-            setSites(response.data.nodes || []);
+        .then(data => {
+          if (data && data.results) {
+            // Filter locations that typically represent a "Site" or top-level area 
+            // OR just show all locations that have a name
+            const locationNodes = data.results.map((loc: any) => ({
+              id: loc.id,
+              name: loc.name
+            }));
+            setSites(locationNodes);
           }
         })
         .catch(err => console.error('Failed to fetch sites:', err));
@@ -360,33 +371,38 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
             Target Selection
           </h3>
 
-          <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex flex-col md:flex-row gap-4">
             {isStandalone && (
-              <div className="flex-1 w-full">
-                <label className="block text-xs font-medium text-slate-500 mb-2 uppercase ml-1">Location</label>
-                <select 
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all cursor-pointer relative z-30"
-                  value={selectedSiteId}
-                  onChange={(e) => setSelectedSiteId(e.target.value)}
-                >
-                  <option value="">All Locations</option>
-                  {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+              <div className="flex-1 w-full group flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 tracking-[0.2em]">Location</label>
+                <div className="relative">
+                  <select 
+                    className="w-full appearance-none bg-slate-950/40 border border-slate-700/30 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-1 focus:ring-cyan-500/30 focus:border-cyan-500/30 transition-all cursor-pointer hover:bg-slate-950/60 hover:border-slate-600/50"
+                    value={selectedSiteId}
+                    onChange={(e) => setSelectedSiteId(e.target.value)}
+                  >
+                    <option value="">All Locations</option>
+                    {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover:text-slate-400 transition-colors">
+                    <ChevronRight className="w-3.5 h-3.5 rotate-90" />
+                  </div>
+                </div>
               </div>
             )}
             
-            <div className="flex-1 w-full">
-              <div className="flex justify-between items-center mb-2 px-1">
-                <label className="block text-xs font-medium text-slate-500 uppercase">Device</label>
+            <div className="flex-1 w-full group flex flex-col gap-2">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Device</label>
                 {devices.length > 0 && (
-                  <span className="text-[10px] font-bold text-slate-600 bg-slate-900/50 px-2 py-0.5 rounded-full border border-slate-700/50">
-                    {devices.filter(d => d.id !== 'simulator-01').length} FOUND
+                  <span className="text-[9px] font-black text-cyan-400/70 bg-cyan-500/5 px-2 py-0.5 rounded-md border border-cyan-500/10 uppercase tracking-tighter">
+                    {devices.filter(d => d.id !== 'simulator').length} Found
                   </span>
                 )}
               </div>
               <div className="relative">
                 <select 
-                  className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all cursor-pointer relative z-30 ${isDevicesLoading ? 'opacity-50' : ''}`}
+                  className={`w-full appearance-none bg-slate-950/40 border border-slate-700/30 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-1 focus:ring-cyan-500/30 focus:border-cyan-500/30 transition-all cursor-pointer hover:bg-slate-950/60 hover:border-slate-600/50 ${isDevicesLoading ? 'opacity-50' : ''}`}
                   value={selectedDevice || ''}
                   onChange={(e) => setSelectedDevice(e.target.value)}
                   disabled={isDevicesLoading}
@@ -402,11 +418,13 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
                     );
                   })}
                 </select>
-                {isDevicesLoading && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 z-40 pointer-events-none">
-                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                  </div>
-                )}
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2">
+                  {isDevicesLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-500/50" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 rotate-90 text-slate-600 group-hover:text-slate-400 transition-colors" />
+                  )}
+                </div>
               </div>
             </div>
 

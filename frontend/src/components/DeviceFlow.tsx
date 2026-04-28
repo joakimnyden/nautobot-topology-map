@@ -21,7 +21,7 @@ import { useTopologyMetrics } from '../hooks/useTopologyMetrics';
 
 // Sub-components
 import { DeviceNode } from './topology/DeviceNode';
-import { APStackNode } from './topology/APStackNode';
+import { ClusterNode } from './topology/ClusterNode';
 import { GroupNode } from './topology/GroupNode';
 import { TopologyEdge } from './topology/TopologyEdge';
 import { EdgeTooltip } from './topology/EdgeTooltip';
@@ -37,7 +37,7 @@ import { getLODLevel } from '../utils/topology-utils';
 
 const nodeTypes = {
   device: DeviceNode,
-  apStack: APStackNode,
+  cluster: ClusterNode,
   aggregate: GroupNode,
 };
 
@@ -127,6 +127,7 @@ export default function DeviceFlow({
     lod,
     showInterfaces,
     selectedEdgeId,
+    selectedNodeId,
     hoveredEdgeId,
     showTraffic: trafficEnabled,
     linkMetrics,
