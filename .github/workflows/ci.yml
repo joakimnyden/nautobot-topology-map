@@ -56,6 +56,15 @@ jobs:
         run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --extra test
+      - name: Diagnostic Info
+        env:
+          NAUTOBOT_CONFIG: nautobot_config.py
+          DJANGO_SETTINGS_MODULE: nautobot_config
+          PYTHONPATH: .
+        run: |
+          uv run nautobot-server --version
+          uv run nautobot-server showmigrations dcim
+          uv run nautobot-server showmigrations extras
       - name: Initialize Nautobot
         env:
           NAUTOBOT_DB_HOST: localhost
