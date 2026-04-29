@@ -74,8 +74,8 @@ line-length = 120
 target-version = ['py311', 'py312', 'py313', 'py314']
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-django_settings_module = "nautobot.core.settings"
+testpaths = ["nautobot_topology/tests", "tests"]
+DJANGO_SETTINGS_MODULE = "nautobot_config"
 python_files = ["test_*.py", "*_test.py"]
 addopts = "-v"
 

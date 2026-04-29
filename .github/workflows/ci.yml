@@ -63,10 +63,11 @@ jobs:
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
           NAUTOBOT_REDIS_HOST: localhost
+          NAUTOBOT_SECRET_KEY: "nautobot-secret-key-change-me"
           DJANGO_SETTINGS_MODULE: nautobot_config
           PYTHONPATH: .
         run: |
-          uv run nautobot-server init
+          uv run nautobot-server post_upgrade
       - name: Run Tests
         env:
           NAUTOBOT_DB_HOST: localhost
@@ -74,6 +75,7 @@ jobs:
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
           NAUTOBOT_REDIS_HOST: localhost
+          NAUTOBOT_SECRET_KEY: "nautobot-secret-key-change-me"
           DJANGO_SETTINGS_MODULE: nautobot_config
           PYTHONPATH: .
         run: uv run pytest
