@@ -9,7 +9,13 @@ django.setup()
 
 from django.db import transaction  # noqa: E402
 from nautobot.dcim.models import (  # noqa: E402
-    Device, DeviceType, Location, LocationType, Manufacturer, Interface, Cable
+    Device,
+    DeviceType,
+    Location,
+    LocationType,
+    Manufacturer,
+    Interface,
+    Cable,
 )
 from nautobot.extras.models import Role, Status  # noqa: E402
 

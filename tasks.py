@@ -110,7 +110,7 @@ def seed(context):
     context.run(
         "docker compose exec -T nautobot nautobot-server shell --command "
         "\"import sys; sys.path.append('/opt/nautobot/scripts'); "
-        "import generate_complex_site; generate_complex_site.run()\"",
+        'import generate_complex_site; generate_complex_site.run()"',
         pty=False,
         in_stream=False,
     )
@@ -124,7 +124,7 @@ def seed_varied(context):
     context.run(
         "docker compose exec -T nautobot nautobot-server shell --command "
         "\"import sys; sys.path.append('/opt/nautobot/scripts'); "
-        "import generate_varied_sites; generate_varied_sites.run()\"",
+        'import generate_varied_sites; generate_varied_sites.run()"',
         pty=False,
         in_stream=False,
     )
