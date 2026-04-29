@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:13
+        image: postgres:15
         env:
           POSTGRES_USER: nautobot
           POSTGRES_DB: nautobot
@@ -59,6 +59,7 @@ jobs:
       - name: Initialize Nautobot
         env:
           NAUTOBOT_DB_HOST: localhost
+          NAUTOBOT_DB_PORT: 5432
           NAUTOBOT_DB_USER: nautobot
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
@@ -71,6 +72,7 @@ jobs:
       - name: Run Tests
         env:
           NAUTOBOT_DB_HOST: localhost
+          NAUTOBOT_DB_PORT: 5432
           NAUTOBOT_DB_USER: nautobot
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot

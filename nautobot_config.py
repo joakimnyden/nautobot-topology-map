@@ -65,8 +65,17 @@ MEDIA_ROOT = os.environ.get("NAUTOBOT_MEDIA_ROOT", os.path.join(os.getcwd(), "me
 # Genrate mocked data for tests
 TEST_USE_FACTORIES = True
 
-# Allow overriding test database name
-if TESTING:
-    test_db_name = os.getenv("NAUTOBOT_TEST_DB_NAME")
-    if test_db_name:
-        DATABASES["default"]["TEST"] = {"NAME": test_db_name}  # noqa: F405
+# Database settings fallback for local tests without Postgres
+if not os.getenv("NAUTOBOT_DB_HOST") and not os.getenv("NAUTOBOT_DB_NAME"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(os.getcwd(), "db.sqlite3"),
+        }
+    }
+elif TESTING:
+    # Ensure DATABASES is defined (should be from nautobot.core.settings)
+    if "DATABASES" in locals():
+        test_db_name = os.getenv("NAUTOBOT_TEST_DB_NAME")
+        if test_db_name:
+            DATABASES["default"]["TEST"] = {"NAME": test_db_name}  # noqa: F405
