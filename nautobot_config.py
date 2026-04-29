@@ -13,7 +13,7 @@ from nautobot.core.settings_funcs import is_truthy, parse_redis_connection
 
 DEBUG = is_truthy(os.getenv("NAUTOBOT_DEBUG", False))
 
-TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
+TESTING = "test" in sys.argv or "pytest" in sys.argv[0]
 
 #
 # Logging
@@ -57,10 +57,10 @@ ALLOWED_HOSTS = os.environ.get("NAUTOBOT_ALLOWED_HOSTS", "*").split(",")
 DEBUG = os.environ.get("NAUTOBOT_DEBUG", "True") == "True"
 
 # Static files
-STATIC_ROOT = os.environ.get("NAUTOBOT_STATIC_ROOT", "/opt/nautobot/static")
+STATIC_ROOT = os.environ.get("NAUTOBOT_STATIC_ROOT", os.path.join(os.getcwd(), "static"))
 if TESTING:
     STATIC_ROOT = "/tmp/static"
-MEDIA_ROOT = "/opt/nautobot/media"
+MEDIA_ROOT = os.environ.get("NAUTOBOT_MEDIA_ROOT", os.path.join(os.getcwd(), "media"))
 
 # Genrate mocked data for tests
 TEST_USE_FACTORIES = True
