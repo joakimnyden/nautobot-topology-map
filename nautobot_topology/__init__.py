@@ -9,6 +9,8 @@ class TopologyConfig(NautobotAppConfig):
     description = "Global and site-level network topology visualization."
     version = "1.1.0"
     base_url = "nautobot_topology"
+    urls = "nautobot_topology.urls"
+    api_urls = "nautobot_topology.api.urls"
 
     default_settings = {
         "prometheus_enabled": False,

@@ -2,6 +2,8 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 from nautobot_topology.api.views import TopologyViewSet
+from django.contrib.auth import get_user_model
+from rest_framework.test import force_authenticate
 
 
 class FrontPortBugTest(TestCase):
@@ -67,7 +69,10 @@ class FrontPortBugTest(TestCase):
         mock_vlan_filter.return_value.values_list.return_value = []
         mock_prefix_filter.return_value.values_list.return_value = []
 
+        User = get_user_model()
+        user = User.objects.create(username="testuser", is_superuser=True)
         request = self.factory.get("/api/plugins/nautobot_topology/topology/123/")
+        force_authenticate(request, user=user)
         view = TopologyViewSet.as_view({"get": "retrieve"})
 
         # This should NOT CRASH with KeyError
