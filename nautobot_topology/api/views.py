@@ -26,12 +26,44 @@ class TopologyPermission(BasePermission):
             return True
 
         # Check specific actions for discovery
-        if view.action in ["discover_cables", "import_cables"]:
+        if view.action in ["discover_neighbors", "discover_cables", "import_cables"]:
             return request.user.has_perm("nautobot_topology.run_cablediscovery")
 
         if request.method == "GET":
             return request.user.has_perm("nautobot_topology.view_topologylayout")
         return request.user.has_perm("nautobot_topology.change_topologylayout")
+
+
+class DiscoveryViewSet(ViewSet):
+    """ViewSet for device neighbor discovery."""
+
+    permission_classes = [TopologyPermission]
+
+    @action(detail=False, methods=["post"])
+    def discover_neighbors(self, request):
+        """Discover CDP/LLDP neighbors for a specific device."""
+        device_id = request.data.get("device_id")
+        if not device_id:
+            return Response({"status": "error", "message": "device_id is required"}, status=400)
+
+        # Validate UUID format to prevent database crash
+        import uuid
+
+        try:
+            uuid.UUID(str(device_id))
+        except (ValueError, TypeError):
+            return Response({"status": "error", "message": f"Invalid UUID format: {device_id}"}, status=400)
+
+        try:
+            device = Device.objects.get(id=device_id)
+        except Device.DoesNotExist:
+            return Response({"status": "error", "message": "Device not found"}, status=404)
+
+        try:
+            results = discover_neighbors(device.id)
+            return Response({"status": "success", "data": results})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=500)
 
 
 class TopologyViewSet(ViewSet):

@@ -25,7 +25,9 @@ class DiscoveryAPITest(APITestCase):
     def test_discover_neighbors_api_success(self, mock_discover):
         mock_discover.return_value = [{"local_interface": "Gi1/0/1", "remote_device": "SW-01"}]
 
-        response = self.client.post(self.discovery_url, {"device_id": "some-uuid"}, format="json")
+        response = self.client.post(
+            self.discovery_url, {"device_id": "00000000-0000-0000-0000-000000000001"}, format="json"
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -35,7 +37,9 @@ class DiscoveryAPITest(APITestCase):
     def test_discover_neighbors_api_error(self, mock_discover):
         mock_discover.side_effect = ValueError("Test error")
 
-        response = self.client.post(self.discovery_url, {"device_id": "some-uuid"}, format="json")
+        response = self.client.post(
+            self.discovery_url, {"device_id": "00000000-0000-0000-0000-000000000001"}, format="json"
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["detail"], "Test error")

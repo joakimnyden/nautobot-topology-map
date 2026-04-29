@@ -9,7 +9,7 @@ import random
 logger = logging.getLogger(__name__)
 
 
-def get_device_credentials(device):
+def get_device_secrets(device):
     if not device.secrets_group:
         raise ValueError(f"No secrets group assigned to device {device.name}")
 
@@ -98,7 +98,7 @@ def discover_neighbors(device_id):
     if not ip_address:
         raise ValueError(f"Device {device.name} has no primary IP address configured")
 
-    username, password, secret = get_device_credentials(device)
+    username, password, secret = get_device_secrets(device)
     device_type = guess_netmiko_device_type(device)
 
     # Connection parameters
