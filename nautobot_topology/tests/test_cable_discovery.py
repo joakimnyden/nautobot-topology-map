@@ -8,14 +8,14 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-User = get_user_model()
+
 
 
 class CableDiscoveryViewTest(TestCase):
     """Tests for the Cable Discovery UI view."""
 
     def setUp(self):
-        self.user = User.objects.create_superuser(
+        self.user = get_user_model().objects.create_superuser(
             username="cd_view_user", email="cdview@example.com", password="password"
         )
         from django.test import Client
@@ -45,7 +45,7 @@ class DiscoverCablesEndpointTest(TestCase):
     """Tests for GET /topology/<device_pk>/discover_cables/"""
 
     def setUp(self):
-        self.user = User.objects.create_superuser(username="cd_user", email="cd@example.com", password="password")
+        self.user = get_user_model().objects.create_superuser(username="cd_user", email="cd@example.com", password="password")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
@@ -102,7 +102,7 @@ class DevicesEndpointTest(TestCase):
     """Tests for GET /topology/<site_pk>/devices/"""
 
     def setUp(self):
-        self.user = User.objects.create_superuser(
+        self.user = get_user_model().objects.create_superuser(
             username="dev_ep_user", email="devep@example.com", password="password"
         )
         self.client = APIClient()
@@ -204,7 +204,7 @@ class ImportCablesEndpointTest(TestCase):
     """Tests for POST /topology/import_cables/"""
 
     def setUp(self):
-        self.user = User.objects.create_superuser(username="ic_user", email="ic@example.com", password="password")
+        self.user = get_user_model().objects.create_superuser(username="ic_user", email="ic@example.com", password="password")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
         self.url = "/api/plugins/nautobot_topology/topology/import_cables/"
@@ -465,3 +465,72 @@ class DiscoveryModuleTest(TestCase):
         self.assertEqual(len(results), 1)
         self.assertFalse(results[0]["is_matched"])
         self.assertIsNone(results[0]["remote_device_id"])
+
+class DiscoveryModuleTest(TestCase):
+    """Tests for the helper functions in discovery.py."""
+
+    def test_normalize_interface_name(self):
+        from nautobot_topology.api.discovery import normalize_interface_name
+
+        test_cases = [
+            ("Gi1/0/1", "gigabitethernet1/0/1"),
+            ("Te1/1", "tengigabitethernet1/1"),
+            ("Fa0/1", "fastethernet0/1"),
+            ("Eth1/1", "ethernet1/1"),
+            ("Po10", "port-channel10"),
+            ("xe-0/0/0", "xe-0/0/0"),
+            ("ge-0/0/1", "ge-0/0/1"),
+            ("xe0/0/0", "xe-0/0/0"),
+            ("Vl10", "vlan10"),
+            ("vlan 20", "vlan20"),
+            ("Mgmt0", "mgmt0"),
+        ]
+
+        for input_name, expected in test_cases:
+            self.assertEqual(normalize_interface_name(input_name), expected)
+
+    @patch("nautobot_topology.api.discovery.Device.objects.filter")
+    def test_standardize_and_match_neighbors(self, mock_device_filter):
+        from nautobot_topology.api.discovery import standardize_and_match_neighbors
+
+        # Mock local device
+        local_device = MagicMock()
+        local_iface = MagicMock()
+        local_iface.name = "GigabitEthernet1/0/1"
+        local_iface.id = "local-if-id"
+        local_iface.lag = None
+        local_device.interfaces.all.return_value = [local_iface]
+
+        # Mock remote device
+        remote_device = MagicMock()
+        remote_device.id = "remote-dev-id"
+        remote_device.name = "Switch-02.example.com"
+        remote_iface = MagicMock()
+        remote_iface.name = "GigabitEthernet0/1"
+        remote_iface.id = "remote-if-id"
+        remote_iface.lag = None
+        remote_device.interfaces.all.return_value = [remote_iface]
+
+        # Setup filter to return our remote device
+        mock_qs = MagicMock()
+        mock_qs.exists.return_value = True
+        mock_qs.first.return_value = remote_device
+        mock_device_filter.return_value = mock_qs
+
+        raw_neighbors = [
+            {
+                "local_interface": "Gi1/0/1",
+                "remote_device": "Switch-02",
+                "remote_interface": "Gi0/1",
+                "protocol": "LLDP",
+            }
+        ]
+
+        results = standardize_and_match_neighbors(local_device, raw_neighbors)
+
+        self.assertEqual(len(results), 1)
+        res = results[0]
+        self.assertEqual(res["local_interface_id"], "local-if-id")
+        self.assertEqual(res["remote_device_id"], "remote-dev-id")
+        self.assertEqual(res["remote_interface_id"], "remote-if-id")
+        self.assertTrue(res["is_matched"])
