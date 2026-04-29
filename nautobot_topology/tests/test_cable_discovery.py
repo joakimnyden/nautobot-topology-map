@@ -24,9 +24,9 @@ class DiscoveryAPITest(APITestCase):
     @patch("nautobot_topology.api.discovery.discover_neighbors")
     def test_discover_neighbors_api_success(self, mock_discover):
         mock_discover.return_value = [{"local_interface": "Gi1/0/1", "remote_device": "SW-01"}]
-        
+
         response = self.client.post(self.discovery_url, {"device_id": "some-uuid"}, format="json")
-        
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["local_interface"], "Gi1/0/1")
@@ -34,9 +34,9 @@ class DiscoveryAPITest(APITestCase):
     @patch("nautobot_topology.api.discovery.discover_neighbors")
     def test_discover_neighbors_api_error(self, mock_discover):
         mock_discover.side_effect = ValueError("Test error")
-        
+
         response = self.client.post(self.discovery_url, {"device_id": "some-uuid"}, format="json")
-        
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["detail"], "Test error")
 
@@ -58,7 +58,7 @@ class DiscoveryModuleTest(TestCase):
         device.primary_ip4 = None
         device.primary_ip6 = None
         mock_dev_get.return_value = device
-        
+
         with self.assertRaises(ValueError) as ctx:
             discover_neighbors("00000000-0000-0000-0000-000000000001")
         self.assertIn("no primary IP", str(ctx.exception))
@@ -75,7 +75,7 @@ class DiscoveryModuleTest(TestCase):
         device.secrets_group = None
         mock_dev_get.return_value = device
         mock_secrets.return_value = None
-        
+
         with self.assertRaises(ValueError) as ctx:
             discover_neighbors("00000000-0000-0000-0000-000000000001")
         self.assertIn("No secrets group", str(ctx.exception))
