@@ -49,3 +49,4 @@ nautobot_topology/static/nautobot_topology/*
 AGENTS.md
 LEAN-CTX.md
 frontend/build_log.txt
+frontend/package-lock.json
