@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
+from django.urls import reverse
 from nautobot_topology.api.views import get_locations_for_site
 
 User = get_user_model()
@@ -24,7 +25,7 @@ class TopologyViewSetListTest(TestCase):
         "nautobot_topology.api.views.cache.get", return_value={"status": "success", "data": {"nodes": [], "links": []}}
     )
     def test_list_cached(self, mock_cache_get):
-        response = self.client.get("/api/plugins/nautobot_topology/topology/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-list"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
 
@@ -44,7 +45,7 @@ class TopologyViewSetListTest(TestCase):
         mock_qs.select_related.return_value.annotate.return_value = [mock_site]
         mock_filter.return_value = mock_qs
 
-        response = self.client.get("/api/plugins/nautobot_topology/topology/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-list"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
         self.assertEqual(len(response.data["data"]["nodes"]), 1)
@@ -64,7 +65,7 @@ class TopologyViewSetListTest(TestCase):
         mock_qs.select_related.return_value.annotate.return_value = [mock_site]
         mock_filter.return_value = mock_qs
 
-        response = self.client.get("/api/plugins/nautobot_topology/topology/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-list"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["data"]["nodes"]), 0)
 
@@ -82,7 +83,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         import nautobot.dcim.models as dcim_models
 
         mock_get.side_effect = dcim_models.Location.DoesNotExist
-        response = self.client.get("/api/plugins/nautobot_topology/topology/123/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-detail", kwargs={"pk": "123"}))
         self.assertEqual(response.status_code, 404)
 
     @patch("nautobot.dcim.models.Interface.objects.filter")
@@ -127,7 +128,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_iface.return_value.values.return_value = []
         mock_fp.return_value.values.return_value = []
 
-        response = self.client.get("/api/plugins/nautobot_topology/topology/123/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-detail", kwargs={"pk": "123"}))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
 
@@ -177,7 +178,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_iface.return_value.values.return_value = []
         mock_fp.return_value.values.return_value = []
 
-        response = self.client.get("/api/plugins/nautobot_topology/topology/site1/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-detail", kwargs={"pk": "site1"}))
         self.assertEqual(response.status_code, 200)
         # 2 APs in same location → one group node
         nodes = response.data["data"]["nodes"]
@@ -203,7 +204,7 @@ class TopologyViewSetLayoutTest(TestCase):
         mock_loc_get.return_value = mock_site
         with patch("nautobot_topology.models.TopologyLayout.objects.update_or_create"):
             response = self.client.post(
-                "/api/plugins/nautobot_topology/topology/123/layout/", {"node1": {"x": 10, "y": 20}}, format="json"
+                reverse("plugins-api:nautobot_topology:topology-layout", kwargs={"pk": "123"}), {"node1": {"x": 10, "y": 20}}, format="json"
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
@@ -218,7 +219,7 @@ class TopologyViewSetLayoutTest(TestCase):
             mock_layout = MagicMock()
             mock_layout.layout_data = {"node1": {"x": 10, "y": 20}}
             mock_layout_get.return_value = mock_layout
-            response = self.client.get("/api/plugins/nautobot_topology/topology/123/layout/")
+            response = self.client.get(reverse("plugins-api:nautobot_topology:topology-layout", kwargs={"pk": "123"}))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
         self.assertEqual(response.data["data"], {"node1": {"x": 10, "y": 20}})
@@ -232,7 +233,7 @@ class TopologyViewSetLayoutTest(TestCase):
             from nautobot_topology.models import TopologyLayout
 
             mock_layout_get.side_effect = TopologyLayout.DoesNotExist
-            response = self.client.get("/api/plugins/nautobot_topology/topology/123/layout/")
+            response = self.client.get(reverse("plugins-api:nautobot_topology:topology-layout", kwargs={"pk": "123"}))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
         self.assertEqual(response.data["data"], {"nodes": []})
@@ -242,7 +243,7 @@ class TopologyViewSetLayoutTest(TestCase):
         import nautobot.dcim.models as dcim_models
 
         mock_loc_get.side_effect = dcim_models.Location.DoesNotExist
-        response = self.client.get("/api/plugins/nautobot_topology/topology/nope/layout/")
+        response = self.client.get(reverse("plugins-api:nautobot_topology:topology-layout", kwargs={"pk": "nope"}))
         self.assertEqual(response.status_code, 404)
 
 
@@ -263,7 +264,7 @@ class TopologyViewSetMetricsTest(TestCase):
         ):
             mock_getattr.return_value.get.return_value = {"prometheus_enabled": False}
             mock_get.return_value = MagicMock()
-            response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+            response = self.client.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "123"}))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["metrics"], {})
 

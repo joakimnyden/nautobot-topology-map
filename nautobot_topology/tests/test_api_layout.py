@@ -16,7 +16,7 @@ class TopologyLayoutAPITest(APITestCase):
         self.active_status = Status.objects.get(name="Active")
         self.site_type, _ = LocationType.objects.get_or_create(name="Site")
         self.site = Location.objects.create(name="Test Site", location_type=self.site_type, status=self.active_status)
-        self.layout_url = reverse("plugins-api:nautobot_topology-api:topology-layout", kwargs={"pk": self.site.pk})
+        self.layout_url = reverse("plugins-api:nautobot_topology:topology-layout", kwargs={"pk": self.site.pk})
 
     def test_save_and_retrieve_layout(self):
         # 1. Initially layout should be empty

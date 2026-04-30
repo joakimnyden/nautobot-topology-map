@@ -19,9 +19,9 @@ class DiscoveryAPITest(APITestCase):
         User = get_user_model()
         self.user = User.objects.create(username="testuser", is_superuser=True)
         self.client.force_authenticate(user=self.user)
-        self.discovery_url = reverse("plugins-api:nautobot_topology-api:discovery-discover-neighbors")
+        self.discovery_url = reverse("plugins-api:nautobot_topology:discovery-discover-neighbors")
 
-    @patch("nautobot_topology.api.discovery.discover_neighbors")
+    @patch("nautobot_topology.api.views.discover_neighbors")
     def test_discover_neighbors_api_success(self, mock_discover):
         mock_discover.return_value = [{"local_interface": "Gi1/0/1", "remote_device": "SW-01"}]
 
@@ -33,7 +33,7 @@ class DiscoveryAPITest(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["local_interface"], "Gi1/0/1")
 
-    @patch("nautobot_topology.api.discovery.discover_neighbors")
+    @patch("nautobot_topology.api.views.discover_neighbors")
     def test_discover_neighbors_api_error(self, mock_discover):
         mock_discover.side_effect = ValueError("Test error")
 

@@ -6,6 +6,8 @@ router = DefaultRouter()
 router.register(r"topology", TopologyViewSet, basename="topology")
 router.register(r"discovery", DiscoveryViewSet, basename="discovery")
 
+app_name = "nautobot_topology"
+
 urlpatterns = [
     path("", include(router.urls)),
 ]

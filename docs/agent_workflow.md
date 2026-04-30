@@ -60,6 +60,7 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 - **Persistence**: Topology node positions are stored in the `TopologyLayout` database model (O2O with `Location`). The API `/layout/` endpoint manages this.
 - **Development**: Use `docker-compose` with the volume mount `./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology` for real-time backend updates.
 - **Compatibility**: Python 3.11-3.14. PostgreSQL 14+. Django 5.2 (`indexes` instead of `index_together`, `assertQuerySetEqual`).
+- **API Namespace**: The plugin API is registered under the `nautobot_topology` namespace. Always use `reverse('plugins-api:nautobot_topology:<viewname>')` for URL resolution in tests and backend code.
 - **Tree Queries**: ALWAYS evaluate `site.descendants()` querysets using `list(...values_list('id', flat=True))` to avoid PostgreSQL CTE subquery errors.
 - **Grouping Logic**: Unconnected devices are aggregated by location. Identification of Access Points (APs) for grouping and stacking is controlled by the `ap_role_name` plugin setting. For high-density sites, leaf stacking is applied generically to all device types via `ClusterNode` to maintain layout readability.
 - **Layout Ranks**: 0 (Firewall/Cloud) to 8 (Generic). Dagre layout uses `ranker: 'network-simplex'` to force top-to-bottom flow regardless of link direction.

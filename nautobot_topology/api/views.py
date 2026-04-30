@@ -549,6 +549,12 @@ class TopologyViewSet(ViewSet):
     @action(detail=True, methods=["get", "post"])
     def layout(self, request, pk=None):
         """Get or save the layout positions for nodes in a site."""
+        import uuid
+        try:
+            uuid.UUID(pk)
+        except (ValueError, TypeError, AttributeError):
+             return Response({"status": "error", "message": "Invalid site ID format"}, status=400)
+
         from ..models import TopologyLayout
 
         try:
@@ -637,6 +643,17 @@ class TopologyViewSet(ViewSet):
 
             if not term_a_id or not term_b_id:
                 errors.append(f"Missing interface ID for {cable_spec}")
+                continue
+
+            # Validate UUID format to prevent django.core.exceptions.ValidationError
+            import uuid
+            try:
+                if term_a_id:
+                    uuid.UUID(str(term_a_id))
+                if term_b_id:
+                    uuid.UUID(str(term_b_id))
+            except (ValueError, TypeError):
+                errors.append(f"Invalid UUID format for interfaces: {term_a_id} or {term_b_id}")
                 continue
 
             try:

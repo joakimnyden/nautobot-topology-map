@@ -39,13 +39,6 @@ CACHEOPS_REDIS = parse_redis_connection(redis_database=1)
 # Plugin configuration
 PLUGINS = ["nautobot_topology", "nautobot_bgp_models"]
 
-# Add plugins to INSTALLED_APPS so they are discovered during testing
-if TESTING:
-    _installed_apps = globals().get("INSTALLED_APPS", [])
-    for plugin in PLUGINS:
-        if plugin not in _installed_apps:
-            _installed_apps.append(plugin)
-
 # Plugins configuration settings. These settings are used by various plugins that the user may have installed.
 # Each key in the dictionary is the name of an installed plugin and its value is a dictionary of settings.
 PLUGINS_CONFIG = {
@@ -61,6 +54,7 @@ PLUGINS_CONFIG = {
 # Security settings
 SECRET_KEY = os.environ.get("NAUTOBOT_SECRET_KEY", "nautobot-secret-key-change-me")
 ALLOWED_HOSTS = os.environ.get("NAUTOBOT_ALLOWED_HOSTS", "*").split(",")
+PROMETHEUS_METRICS_DIR = "/tmp"
 DEBUG = os.environ.get("NAUTOBOT_DEBUG", "True") == "True"
 
 # Static files

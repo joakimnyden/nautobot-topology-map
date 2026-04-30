@@ -1458,7 +1458,7 @@ requires-dist = [
     { name = "factory-boy" },
     { name = "flake8", marker = "extra == 'dev'" },
     { name = "invoke", marker = "extra == 'dev'" },
-    { name = "nautobot", specifier = ">=3.0.0,<3.2.0" },
+    { name = "nautobot", specifier = ">=3.0.0,<3.1.0" },
     { name = "nautobot-bgp-models", specifier = ">=3.1.1" },
     { name = "netmiko", specifier = ">=4.0.0" },
     { name = "networkx", specifier = ">=3.0" },

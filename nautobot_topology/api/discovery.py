@@ -3,6 +3,7 @@ from nautobot.dcim.models import Device
 from netmiko import ConnectHandler
 import re
 import logging
+import uuid
 from django.conf import settings
 import random
 
@@ -81,6 +82,15 @@ def guess_netmiko_device_type(device):
 
 
 def discover_neighbors(device_id):
+    # Validate UUID to prevent Django ValidationError when querying with malformed IDs
+    try:
+        if isinstance(device_id, str):
+            uuid.UUID(device_id)
+        elif not isinstance(device_id, uuid.UUID):
+             raise ValueError(f"Invalid device_id format: {device_id}")
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid device_id format: {device_id}")
+
     device = Device.objects.get(id=device_id)
 
     # Check for simulator setting

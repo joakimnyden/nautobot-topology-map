@@ -83,7 +83,7 @@ RUN pip install --no-cache-dir uv
 COPY nautobot_topology /source/nautobot_topology
 COPY pyproject.toml /source
 COPY README.md /source
-COPY scripts /source/scripts
+# COPY scripts /source/scripts
 WORKDIR /source
 
 # Copy built frontend assets from Stage 1
@@ -116,13 +116,14 @@ COPY --from=builder /usr/local/lib/python${PYTHON_VER}/site-packages /usr/local/
 COPY --from=builder /usr/local/bin /usr/local/bin
 # COPY --from=frontend-builder /source/nautobot_topology/static/nautobot_topology/ /opt/nautobot/nautobot_topology/static/nautobot_topology/
 COPY nautobot_config.py /opt/nautobot/nautobot_config.py
-COPY --from=builder /source/scripts /opt/nautobot/scripts
+# COPY --from=builder /source/scripts /opt/nautobot/scripts
 # COPY nautobot_topology /opt/nautobot/nautobot_topology
 
 # Install the plugin and its dependencies including extras
 RUN uv pip install --system /tmp/dist/*.whl pytest pytest-django pytest-cov coverage
 
-RUN nautobot-server collectstatic --no-input
+RUN nautobot-server collectstatic --no-input && \
+    chown -R nautobot:nautobot /opt/nautobot/static
 
 USER nautobot
 

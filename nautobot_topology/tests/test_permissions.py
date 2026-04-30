@@ -23,8 +23,8 @@ class TopologyPermissionsTest(APITestCase):
         self.user = User.objects.create(username="testuser", is_superuser=False)
 
         # URLs
-        self.list_url = reverse("plugins-api:nautobot_topology-api:topology-list")
-        self.layout_url = reverse("plugins-api:nautobot_topology-api:topology-layout", kwargs={"pk": self.site.pk})
+        self.list_url = reverse("plugins-api:nautobot_topology:topology-list")
+        self.layout_url = reverse("plugins-api:nautobot_topology:topology-layout", kwargs={"pk": self.site.pk})
 
     def test_anonymous_access_denied(self):
         """Verify that unauthenticated users cannot access the API."""

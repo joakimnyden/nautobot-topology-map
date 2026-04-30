@@ -4,6 +4,7 @@ from rest_framework.test import APIRequestFactory
 from nautobot_topology.api.views import TopologyViewSet
 from django.contrib.auth import get_user_model
 from rest_framework.test import force_authenticate
+from django.urls import reverse
 
 
 class TopologyMetricsTest(TestCase):
@@ -20,7 +21,7 @@ class TopologyMetricsTest(TestCase):
         # Mock plugin config to disable prometheus
         mock_getattr.return_value.get.return_value = {"prometheus_enabled": False}
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+        request = self.factory.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "123"}))
         force_authenticate(request, user=self.user)
         response = self.view(request, pk="123")
 
@@ -33,7 +34,7 @@ class TopologyMetricsTest(TestCase):
         import nautobot.dcim.models as dcim_models
 
         mock_get_loc.side_effect = dcim_models.Location.DoesNotExist
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/nonexistent/metrics/")
+        request = self.factory.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "nonexistent"}))
         force_authenticate(request, user=self.user)
         response = self.view(request, pk="nonexistent")
         self.assertEqual(response.status_code, 404)
@@ -66,7 +67,7 @@ class TopologyMetricsTest(TestCase):
         mock_cable_qs.select_related.return_value = [mock_cable]
         mock_cable_filter.return_value = mock_cable_qs
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+        request = self.factory.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "123"}))
         force_authenticate(request, user=self.user)
         response = self.view(request, pk="123")
 
@@ -104,7 +105,7 @@ class TopologyMetricsTest(TestCase):
         mock_cable_qs.select_related.return_value = [mock_cable]
         mock_cable_filter.return_value = mock_cable_qs
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+        request = self.factory.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "123"}))
         force_authenticate(request, user=self.user)
         response = self.view(request, pk="123")
         self.assertEqual(response.status_code, 200)
@@ -149,7 +150,7 @@ class TopologyMetricsTest(TestCase):
         mock_resp.json.return_value = {"status": "success", "data": {"result": [{"value": [0, "1234.56"]}]}}
         mock_requests_get.return_value = mock_resp
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+        request = self.factory.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "123"}))
         force_authenticate(request, user=self.user)
         response = self.view(request, pk="123")
 
@@ -189,7 +190,7 @@ class TopologyMetricsTest(TestCase):
         # Mock Prometheus error (line 365-367)
         mock_requests_get.side_effect = Exception("Network error")
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+        request = self.factory.get(reverse("plugins-api:nautobot_topology:topology-metrics", kwargs={"pk": "123"}))
         force_authenticate(request, user=self.user)
         response = self.view(request, pk="123")
         self.assertEqual(response.status_code, 200)
