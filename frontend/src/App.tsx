@@ -40,7 +40,7 @@ export default function App() {
 
   if (isDiscoveryPage) {
     return (
-      <div className="w-full relative bg-[#020617] text-white font-sans p-8 z-[10] min-h-[800px]" style={{ borderRadius: '1.5rem' }}>
+      <div className="w-full relative bg-[#020617] text-white font-sans p-8 z-[10] h-[calc(100vh-120px)] min-h-[800px] overflow-hidden" style={{ borderRadius: '1.5rem' }}>
         {/* Technical Background Elements - Strictly Background */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden rounded-[1.5rem]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.08)_0%,transparent_40%)]" />

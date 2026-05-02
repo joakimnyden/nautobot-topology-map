@@ -5,23 +5,20 @@ from nautobot.dcim.models import Location, LocationType
 from nautobot.users.models import User
 from nautobot.extras.models import Status
 
+
 class TopologyLayoutAPITest(APITestCase):
     def setUp(self):
         # Create a user for authentication if needed
         self.user = User.objects.create(username="testuser", is_superuser=True)
         self.client.force_authenticate(user=self.user)
-        
+
         # Site is now a Location with location_type Site
         self.active_status = Status.objects.get(name="Active")
         self.site_type, _ = LocationType.objects.get_or_create(name="Site")
-        self.site = Location.objects.create(
-            name="Test Site",
-            location_type=self.site_type,
-            status=self.active_status
-        )
+        self.site = Location.objects.create(name="Test Site", location_type=self.site_type, status=self.active_status)
         self.layout_url = reverse(
             "plugins-api:nautobot_topology-api:topology-layout",
-            kwargs={"pk": self.site.pk}
+            kwargs={"pk": self.site.pk},
         )
 
     def test_save_and_retrieve_layout(self):

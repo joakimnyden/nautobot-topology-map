@@ -41,14 +41,19 @@ services:
     env_file:
       - ".env.cred.example"
       - ".env.local.example"
+    environment:
+      prometheus_multiproc_dir: "/tmp"
     volumes:
-      - "./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology"
+      - "./nautobot_topology:/usr/local/lib/python3.12/site-packages/nautobot_topology"
+      - "./nautobot_topology:/opt/nautobot/nautobot_topology"
       - "./nautobot_config.py:/opt/nautobot/nautobot_config.py"
       - "./dev_data.json:/opt/nautobot/dev_data.json"
+      - "./.flake8:/opt/nautobot/.flake8"
+      - "./pyproject.toml:/opt/nautobot/pyproject.toml"
     entrypoint: ""
     command: >
       sh -c "nautobot-server post_upgrade &&
-             nautobot-server loaddata /opt/nautobot/dev_data.json &&
+             # nautobot-server loaddata /opt/nautobot/dev_data.json &&
              nautobot-server runserver 0.0.0.0:8080"
 
   celery:
@@ -61,8 +66,11 @@ services:
     env_file:
       - ".env.cred.example"
       - ".env.local.example"
+    environment:
+      prometheus_multiproc_dir: "/tmp"
     volumes:
-      - "./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology"
+      - "./nautobot_topology:/usr/local/lib/python3.12/site-packages/nautobot_topology"
+      - "./nautobot_topology:/opt/nautobot/nautobot_topology"
       - "./nautobot_config.py:/opt/nautobot/nautobot_config.py"
     entrypoint: ""
     command: "nautobot-server celery worker -l INFO"

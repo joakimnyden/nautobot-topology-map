@@ -13,9 +13,7 @@ class Migration(migrations.Migration):
         migrations.AlterModelOptions(
             name="topologylayout",
             options={
-                "permissions": [
-                    ("run_cablediscovery", "Can run cable discovery (LLDP/CDP)")
-                ],
+                "permissions": [("run_cablediscovery", "Can run cable discovery (LLDP/CDP)")],
                 "verbose_name": "Topology Layout",
                 "verbose_name_plural": "Topology Layouts",
             },
