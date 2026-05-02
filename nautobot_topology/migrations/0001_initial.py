@@ -13,8 +13,8 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("dcim", "0084_add_module_type_image_support"),
-        ("extras", "0142_remove_scheduledjob_approval_required"),
+        ("dcim", "0081_alter_device_device_redundancy_group_priority_and_more"),
+        ("extras", "0133_alter_approvalworkflowstageresponse_options_and_more"),
     ]
 
     operations = [
@@ -52,9 +52,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "tags",
-                    nautobot.core.models.fields.TagsField(
-                        through="extras.TaggedItem", to="extras.Tag"
-                    ),
+                    nautobot.core.models.fields.TagsField(through="extras.TaggedItem", to="extras.Tag"),
                 ),
             ],
             options={

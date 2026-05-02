@@ -1,5 +1,5 @@
-ARG NAUTOBOT_VER="3.1.0"
-ARG PYTHON_VER="3.14"
+ARG NAUTOBOT_VER="3.0.11"
+ARG PYTHON_VER="3.12"
 
 FROM ghcr.io/nautobot/nautobot:${NAUTOBOT_VER}-py${PYTHON_VER} as nautobot-base
 

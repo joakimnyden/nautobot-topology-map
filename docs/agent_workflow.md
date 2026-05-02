@@ -46,6 +46,13 @@ Follow these steps strictly for *every* task to ensure consistency and stability
     - **Simulator**: Hybrid simulation mode enabled via `discovery_simulator_enabled` in `nautobot_config.py`.
       - **Frontend**: Adds a "✨ Discovery Simulator" device with hardcoded mock results.
       - **Backend**: The `discover_neighbors` API returns simulated neighbors for *any* device using database lookups of nearby devices, bypassing SSH connectivity.
+    - **Matching Logic**:
+      - Matches remote devices using:
+        1. Exact case-insensitive Name match
+        2. FQDN stripping (handles multiple dots/domains)
+        3. Primary IP match (IPv4/IPv6 via Django Q objects)
+        4. MAC address match (searching all device interfaces)
+      - MAC address handling: `strip_domain_safe` recognizes and preserves common MAC formats (e.g., `aaaa.bbbb.cccc`) instead of treating them as FQDNs.
 - **Performance (10k+ nodes)**:
   - Pre-calculate `deviceMap` and `linkMap` in `useMemo` (O(1) lookups). NEVER use `.find()` on hot paths.
   - Use structured rank grids for datasets > 500 nodes instead of Dagre.
@@ -58,8 +65,8 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 
 ### Backend & Database (Nautobot 3.1.1)
 - **Persistence**: Topology node positions are stored in the `TopologyLayout` database model (O2O with `Location`). The API `/layout/` endpoint manages this.
-- **Development**: Use `docker-compose` with the volume mount `./nautobot_topology:/usr/local/lib/python3.14/site-packages/nautobot_topology` for real-time backend updates.
-- **Compatibility**: Python 3.11-3.14. PostgreSQL 14+. Django 5.2 (`indexes` instead of `index_together`, `assertQuerySetEqual`).
+- **Development**: Use `docker-compose` with the volume mount `./nautobot_topology:/usr/local/lib/python3.12/site-packages/nautobot_topology` for real-time backend updates.
+- **Compatibility**: Python 3.11-3.12 (Python 3.14 experimental/unstable with Django templates). PostgreSQL 14+. Django 5.2 (`indexes` instead of `index_together`, `assertQuerySetEqual`).
 - **Tree Queries**: ALWAYS evaluate `site.descendants()` querysets using `list(...values_list('id', flat=True))` to avoid PostgreSQL CTE subquery errors.
 - **Grouping Logic**: Unconnected devices are aggregated by location. Identification of Access Points (APs) for grouping and stacking is controlled by the `ap_role_name` plugin setting. For high-density sites, leaf stacking is applied generically to all device types via `ClusterNode` to maintain layout readability.
 - **Layout Ranks**: 0 (Firewall/Cloud) to 8 (Generic). Dagre layout uses `ranker: 'network-simplex'` to force top-to-bottom flow regardless of link direction.
@@ -67,4 +74,5 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 ## 4. Testing Standards (80% Coverage Required)
 - **Backend**: Execute via `uv run invoke test`. Follow Nautobot's official API testing framework standards.
   - **Permissions**: When testing Nautobot `ObjectPermission`, be aware that DRF's `force_authenticate` or Django's `force_login` may not always pick up model-level permission changes in the same test session without a user re-fetch/re-authentication.
+  - **Mocking Consistency**: When patching models (e.g. `Interface`) for API tests, always patch the import path used in `api/views.py` (e.g. `nautobot_topology.api.views.Interface`) rather than the raw model path to ensure consistency between the code and the mock.
 - **Frontend**: Execute via `npm run test --prefix frontend` (Vitest + React Testing Library). Ensure custom hooks have dedicated `.test.ts` files (use `renderHook`).
