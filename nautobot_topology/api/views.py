@@ -110,24 +110,62 @@ class TopologyViewSet(ViewSet):
             site = Location.objects.get(pk=pk)
         except Location.DoesNotExist:
             return Response({"status": "error", "message": "Site not found"}, status=404)
+
         # Get plugin configuration
         plugin_config = settings.PLUGINS_CONFIG.get("nautobot_topology", {})
+        locations = get_locations_for_site(site)
+
+        # 1. Fetch devices and categorize them
+        devices_qs = self._get_filtered_devices_queryset(locations, plugin_config)
+        devices = list(devices_qs)
+
+        # 2. Get interfaces and ports for cable lookup
+        term_to_data = self._get_term_to_data_map(devices)
+
+        # 3. Process Links
+        links_map, connected_device_ids = self._get_cable_links(term_to_data)
+
+        # 4. Add BGP Peerings
+        links_map.extend(self._get_bgp_links(devices, connected_device_ids))
+
+        # 5. Build Nodes (Connected + Aggregated Unconnected)
+        nodes = self._build_topology_nodes(site, devices, connected_device_ids, links_map, plugin_config)
+
+        # 6. Site-wide aggregation for sidebar
+        vlans = self._get_site_vlans(locations)
+        prefixes = self._get_site_prefixes(locations)
+
+        return Response(
+            {
+                "status": "success",
+                "data": {
+                    "nodes": nodes,
+                    "links": links_map,
+                    "availableVlans": vlans,
+                    "availablePrefixes": prefixes,
+                    "config": {
+                        "topology_style": plugin_config.get("topology_style", "fancy"),
+                        "prometheus_enabled": plugin_config.get("prometheus_enabled", False),
+                        "ap_role_name": plugin_config.get("ap_role_name", "Access Points"),
+                        "debug": plugin_config.get("debug", False),
+                    },
+                },
+            }
+        )
+
+    def _get_filtered_devices_queryset(self, locations, plugin_config):
+        """Build a filtered and optimized device queryset."""
         allowed_statuses = plugin_config.get("allowed_statuses", ["Active"])
         allowed_device_types = plugin_config.get("allowed_device_types", [])
-        topology_style = plugin_config.get("topology_style", "fancy")
-        prometheus_enabled = plugin_config.get("prometheus_enabled", False)
-        ap_role_name = plugin_config.get("ap_role_name", "Access Points")
-        # Gather all devices including those in sub-locations (recursive)
-        locations = get_locations_for_site(site)
+
         devices_qs = Device.objects.filter(location__in=locations)
 
-        # Apply configurable filters early
         if allowed_statuses:
             devices_qs = devices_qs.filter(status__name__in=allowed_statuses)
         if allowed_device_types:
             devices_qs = devices_qs.filter(device_type__model__in=allowed_device_types)
-        # Prefetch necessary data for serialization (minimal for topology)
-        devices_qs = devices_qs.select_related(
+
+        return devices_qs.select_related(
             "role",
             "primary_ip4",
             "primary_ip6",
@@ -136,23 +174,19 @@ class TopologyViewSet(ViewSet):
             "status",
             "location",
         )
-        devices = list(devices_qs)
 
-        # 1. Fetch Interface data with LAG and Names
+    def _get_term_to_data_map(self, devices):
+        """Map all termination IDs to their metadata for link processing."""
+        term_to_data = {}
 
+        # Fetch Interfaces
         iface_data = Interface.objects.filter(device__in=devices).values(
-            "id",
-            "device_id",
-            "device__name",
-            "name",
-            "lag_id",
-            "lag__name",
-            "type",
-            "speed",
+            "id", "device_id", "device__name", "name", "lag_id", "lag__name", "type", "speed"
         )
-        term_to_data = {str(i["id"]): i for i in iface_data}
+        for i in iface_data:
+            term_to_data[str(i["id"])] = i
 
-        # Add FrontPorts too
+        # Fetch FrontPorts
         fp_data = FrontPort.objects.filter(device__in=devices).values("id", "device_id", "device__name", "name", "type")
         for fp in fp_data:
             term_to_data[str(fp["id"])] = {
@@ -164,51 +198,36 @@ class TopologyViewSet(ViewSet):
                 "lag_id": None,
                 "lag__name": None,
             }
+
+        return term_to_data
+
+    def _get_cable_links(self, term_to_data):
+        """Generate cable links and identify connected devices."""
         all_term_ids = list(term_to_data.keys())
-        # 2. Process Cables with LAG Aggregation
         cables = Cable.objects.filter(termination_a_id__in=all_term_ids, termination_b_id__in=all_term_ids).values(
             "id", "termination_a_id", "termination_b_id", "label", "type"
         )
 
-        links_map = []
-        lag_links = {}  # (s_dev, t_dev, s_lag) -> link_obj
+        links = []
+        lag_links = {}
         connected_device_ids = set()
 
         for cable in cables:
-            s_tid = str(cable["termination_a_id"])
-            t_tid = str(cable["termination_b_id"])
-            s_data = term_to_data.get(s_tid)
-            t_data = term_to_data.get(t_tid)
+            s_tid, t_tid = str(cable["termination_a_id"]), str(cable["termination_b_id"])
+            s_data, t_data = term_to_data.get(s_tid), term_to_data.get(t_tid)
 
             if s_data and t_data:
                 s_dev, t_dev = str(s_data["device_id"]), str(t_data["device_id"])
                 connected_device_ids.add(s_dev)
                 connected_device_ids.add(t_dev)
 
-                # Check for LAG
                 s_lag = s_data["lag_id"]
                 if s_lag:
                     dev_pair = sorted([s_dev, t_dev])
                     pairing = (dev_pair[0], dev_pair[1], str(s_lag))
                     if pairing not in lag_links:
-                        lag_links[pairing] = {
-                            "id": f"lag-{s_lag}",
-                            "source": s_dev,
-                            "target": t_dev,
-                            "sourceDeviceName": s_data["device__name"],
-                            "targetDeviceName": t_data["device__name"],
-                            "type": "port-channel",
-                            "isPortChannel": True,
-                            "sourceInterface": s_data["lag__name"],
-                            "sourceInterfaceUrl": f"/dcim/interfaces/{s_lag}/",
-                            "targetInterface": (t_data["lag__name"] if t_data.get("lag_id") else "LAG"),
-                            "targetInterfaceUrl": (
-                                f"/dcim/interfaces/{t_data['lag_id']}/" if t_data.get("lag_id") else None
-                            ),
-                            "lagMembers": [],
-                            "nautobotUrl": f"/dcim/interfaces/{s_lag}/",
-                        }
-                    # Add member pair with IDs for linking
+                        lag_links[pairing] = self._init_lag_link(s_dev, t_dev, s_lag, s_data, t_data)
+
                     lag_links[pairing]["lagMembers"].append(
                         {
                             "sourceInterface": s_data["name"],
@@ -218,7 +237,7 @@ class TopologyViewSet(ViewSet):
                         }
                     )
                 else:
-                    links_map.append(
+                    links.append(
                         {
                             "id": str(cable["id"]),
                             "source": s_dev,
@@ -235,316 +254,303 @@ class TopologyViewSet(ViewSet):
                         }
                     )
 
-        # Add aggregated LAG links
-        links_map.extend(lag_links.values())
-        # 3. Discover BGP Peerings from BGP Plugin
+        links.extend(lag_links.values())
+        return links, connected_device_ids
+
+    def _init_lag_link(self, s_dev, t_dev, s_lag, s_data, t_data):
+        """Initialize a LAG aggregation link object."""
+        return {
+            "id": f"lag-{s_lag}",
+            "source": s_dev,
+            "target": t_dev,
+            "sourceDeviceName": s_data["device__name"],
+            "targetDeviceName": t_data["device__name"],
+            "type": "port-channel",
+            "isPortChannel": True,
+            "sourceInterface": s_data["lag__name"],
+            "sourceInterfaceUrl": f"/dcim/interfaces/{s_lag}/",
+            "targetInterface": (t_data["lag__name"] if t_data.get("lag_id") else "LAG"),
+            "targetInterfaceUrl": (f"/dcim/interfaces/{t_data['lag_id']}/" if t_data.get("lag_id") else None),
+            "lagMembers": [],
+            "nautobotUrl": f"/dcim/interfaces/{s_lag}/",
+        }
+
+    def _get_bgp_links(self, devices, connected_device_ids):
+        """Fetch and format BGP peerings as logical links."""
+        links = []
         try:
             from nautobot_bgp_models.models import Peering
 
             peerings = (
                 Peering.objects.filter(endpoints__routing_instance__device__in=devices)
                 .distinct()
-                .prefetch_related("endpoints__routing_instance__device")
+                .prefetch_related("endpoints__routing_instance__device", "endpoints__autonomous_system", "status")
             )
 
             for peering in peerings:
                 eps = list(peering.endpoints.all())
                 if len(eps) >= 2:
-                    source_dev = str(eps[0].routing_instance.device_id)
-                    target_dev = str(eps[1].routing_instance.device_id)
-                    connected_device_ids.add(source_dev)
-                    connected_device_ids.add(target_dev)
-                    links_map.append(
-                        {
-                            "id": f"bgp-{peering.id}",
-                            "source": source_dev,
-                            "target": target_dev,
-                            "type": "logical",
-                            "protocol": "BGP",
-                            "status": (
-                                getattr(peering.status, "name", "Unknown")
-                                if getattr(peering, "status", None)
-                                else "Unknown"
-                            ),
-                            "description": getattr(peering, "description", "") or "",
-                            "localAs": (
-                                str(
-                                    getattr(
-                                        getattr(eps[0], "autonomous_system", None),
-                                        "asn",
-                                        "",
-                                    )
-                                )
-                                if len(eps) > 0 and getattr(eps[0], "autonomous_system", None)
-                                else None
-                            ),
-                            "remoteAs": (
-                                str(
-                                    getattr(
-                                        getattr(eps[1], "autonomous_system", None),
-                                        "asn",
-                                        "",
-                                    )
-                                )
-                                if len(eps) > 1 and getattr(eps[1], "autonomous_system", None)
-                                else None
-                            ),
-                            "localIp": (
-                                str(eps[0].source_ip.address.ip)
-                                if len(eps) > 0 and getattr(eps[0], "source_ip", None)
-                                else None
-                            ),
-                            "remoteIp": (
-                                str(eps[1].source_ip.address.ip)
-                                if len(eps) > 1 and getattr(eps[1], "source_ip", None)
-                                else None
-                            ),
-                            "peerGroup": (
-                                getattr(peering.peer_group, "name", None)
-                                if getattr(peering, "peer_group", None)
-                                else None
-                            ),
-                            "nautobotUrl": (
-                                peering.get_absolute_url()
-                                if hasattr(peering, "get_absolute_url")
-                                else f"/plugins/nautobot-bgp-models/peerings/{peering.id}/"
-                            ),
-                        }
-                    )
-        except Exception as e:
-            if plugin_config.get("debug"):
-                print(f"BGP discovery skipped: {e}")
-        nodes = []
-        available_vlans = set()
-        available_prefixes = set()
+                    s_dev, t_dev = str(eps[0].routing_instance.device_id), str(eps[1].routing_instance.device_id)
+                    connected_device_ids.add(s_dev)
+                    connected_device_ids.add(t_dev)
+                    links.append(self._format_bgp_link(peering, eps, s_dev, t_dev))
+        except (ImportError, Exception):
+            pass
+        return links
 
-        # 2. Separate devices into connected and unconnected
-        unconnected_by_location = {}  # location_id -> [devices]
+    def _format_bgp_link(self, peering, eps, s_dev, t_dev):
+        """Format a BGP peering into a topology link object."""
+        return {
+            "id": f"bgp-{peering.id}",
+            "source": s_dev,
+            "target": t_dev,
+            "type": "logical",
+            "protocol": "BGP",
+            "status": getattr(peering.status, "name", "Unknown") if peering.status else "Unknown",
+            "description": peering.description or "",
+            "localAs": str(eps[0].autonomous_system.asn) if eps[0].autonomous_system else None,
+            "remoteAs": str(eps[1].autonomous_system.asn) if eps[1].autonomous_system else None,
+            "localIp": str(eps[0].source_ip.address.ip) if eps[0].source_ip else None,
+            "remoteIp": str(eps[1].source_ip.address.ip) if eps[1].source_ip else None,
+            "peerGroup": getattr(peering.peer_group, "name", None),
+            "nautobotUrl": (
+                peering.get_absolute_url()
+                if hasattr(peering, "get_absolute_url")
+                else f"/plugins/nautobot-bgp-models/peerings/{peering.id}/"
+            ),
+        }
+
+    def _build_topology_nodes(self, site, devices, connected_device_ids, links_map, plugin_config):
+        """Build the list of nodes, grouping unconnected devices or leaf APs where applicable."""
+        nodes = []
+        ap_role_name = plugin_config.get("ap_role_name", "Access Points")
+        
+        # 1. Identify APs and their connections
+        ap_ids = set()
+        for device in devices:
+            role_name = str(getattr(device.role, "name", "") or "")
+            if role_name.lower() in [ap_role_name.lower(), "access point", "ap"]:
+                ap_ids.add(str(device.id))
+
+        # Map devices to their neighbors (only considering physical/logical links in this site)
+        device_neighbors = {}
+        for link in links_map:
+            # We only care about simple links for neighbor mapping
+            if link.get("type") in ["physical", "logical", "bgp"]:
+                s, t = link["source"], link["target"]
+                if s not in device_neighbors: device_neighbors[s] = []
+                if t not in device_neighbors: device_neighbors[t] = []
+                device_neighbors[s].append(t)
+                device_neighbors[t].append(s)
+
+        # 2. Categorize devices: regular node, group member (AP), or unconnected group member
+        groups = {} # key -> list of devices
+        links_to_remove = set()
+        links_to_add = []
+        
+        processed_dev_ids = set()
 
         for device in devices:
             dev_id = str(device.id)
-
-            # Optimization: Skip individual VLAN/Prefix processing for large site views
-            # This data can be fetched via a detail endpoint if needed.
-            device_vlans = []
-            device_prefixes = []
-            if dev_id in connected_device_ids:
-                # Add individual node for connected device
-                primary_ip = ""
-                if device.primary_ip4:
-                    primary_ip = str(device.primary_ip4.address.ip)
-                elif device.primary_ip6:
-                    primary_ip = str(device.primary_ip6.address.ip)
-                nodes.append(
-                    {
-                        "id": dev_id,
-                        "name": device.name,
-                        "siteId": str(site.id),
-                        "role": getattr(device.role, "name", "Unknown"),
-                        "platform": getattr(device.platform, "name", "Unknown"),
-                        "deviceType": getattr(device.device_type, "model", "Unknown"),
-                        "vendor": getattr(device.device_type.manufacturer, "name", "Unknown"),
-                        "status": ("active" if getattr(device.status, "name", "") == "Active" else "offline"),
-                        "primaryIp": primary_ip,
-                        "vlans": list(set(device_vlans)),
-                        "protocols": [],
-                        "prefixes": list(set(device_prefixes)),
-                        "nautobotUrl": device.get_absolute_url(),
-                    }
-                )
+            is_ap = dev_id in ap_ids
+            neighbors = device_neighbors.get(dev_id, [])
+            
+            # Logic for grouping APs by parent switch
+            if is_ap and len(neighbors) == 1:
+                parent_id = neighbors[0]
+                group_key = f"ap-parent-{parent_id}-{device.location_id}"
+                if group_key not in groups:
+                    groups[group_key] = {"devices": [], "parent_id": parent_id, "type": "ap"}
+                groups[group_key]["devices"].append(device)
+                processed_dev_ids.add(dev_id)
+                # Mark link for removal (we'll replace it with a group link)
+                links_to_remove.add(dev_id) 
+            
+            # Logic for unconnected devices (existing behavior)
+            elif dev_id not in connected_device_ids:
+                group_key = f"unconnected-{device.location_id}"
+                if group_key not in groups:
+                    groups[group_key] = {"devices": [], "parent_id": None, "type": "other"}
+                groups[group_key]["devices"].append(device)
+                processed_dev_ids.add(dev_id)
+            
             else:
-                # Group unconnected devices by location AND whether they are APs
-                ap_role_name = plugin_config.get("ap_role_name", "Access Points")
-                role_name = str(getattr(device.role, "name", "") or "")
-                # Exact match or case-insensitive match for the configured role
-                is_ap = role_name.lower() == ap_role_name.lower()
-                # Fallback for common naming if using default
-                if ap_role_name.lower() == "access points" and not is_ap:
-                    is_ap = role_name.lower() == "access point"
+                # Regular connected device (not a leaf AP)
+                nodes.append(self._format_device_node(site, device))
 
-                loc_id = str(device.location_id)
-                group_key = f"{loc_id}-ap" if is_ap else f"{loc_id}-other"
-
-                if group_key not in unconnected_by_location:
-                    unconnected_by_location[group_key] = []
-                unconnected_by_location[group_key].append(device)
-        # 3. Create aggregated nodes for unconnected devices
-        for loc_id, group_devices in unconnected_by_location.items():
-            if not group_devices:
-                continue
-
-            loc_obj = group_devices[0].location
-            is_ap_group = loc_id.endswith("-ap")
-
+        # 3. Process groups and update links
+        for group_key, group_info in groups.items():
+            group_devices = group_info["devices"]
+            parent_id = group_info["parent_id"]
+            is_ap_group = group_info["type"] == "ap"
+            
             if len(group_devices) > 1:
-                # Aggregate into a "Group" node
-                group_name = f"{loc_obj.name} ({ap_role_name})" if is_ap_group else f"{loc_obj.name} (Other)"
-
-                # Collect basic metadata about the devices within this group
-                inner_devices = []
-                for d in group_devices:
-                    ip_str = ""
-                    if d.primary_ip4:
-                        ip_str = str(d.primary_ip4.address.ip)
-                    elif d.primary_ip6:
-                        ip_str = str(d.primary_ip6.address.ip)
-                    inner_devices.append(
-                        {
-                            "id": str(d.id),
-                            "name": d.name,
-                            "role": getattr(d.role, "name", "Unknown"),
-                            "primaryIp": ip_str,
-                            "nautobotUrl": d.get_absolute_url(),
-                        }
-                    )
-
-                nodes.append(
-                    {
-                        "id": f"group-{loc_id}",
-                        "name": group_name,
-                        "siteId": str(site.id),
-                        "role": ap_role_name if is_ap_group else "Other",
-                        "type": "group",
-                        "deviceCount": len(group_devices),
-                        "devices": inner_devices,
-                        "status": "active",
-                        "vendor": "Nautobot",
-                        "description": (
-                            f"Collection of {len(group_devices)} unconnected "
-                            f"{'AP' if is_ap_group else 'device'}s in {loc_obj.name}"
-                        ),
-                    }
-                )
+                # Create the group node
+                group_id = f"group-{group_key}"
+                nodes.append(self._format_group_node(site, group_devices, is_ap_group, ap_role_name, group_id))
+                
+                # If it has a parent, link the group node to the parent
+                if parent_id:
+                    links_to_add.append({
+                        "id": f"link-to-{group_id}",
+                        "source": parent_id,
+                        "target": group_id,
+                        "type": "physical",
+                        "label": f"x{len(group_devices)} APs"
+                    })
             else:
-                # Single unconnected device, show it as individual node but maybe it's cleaner as single?
-                # User said "sum them up if they aren't connected"
-                device = group_devices[0]
-                primary_ip = ""
-                if device.primary_ip4:
-                    primary_ip = str(device.primary_ip4.address.ip)
-                elif device.primary_ip6:
-                    primary_ip = str(device.primary_ip6.address.ip)
+                # Only one device in group, show it as a regular node
+                nodes.append(self._format_device_node(site, group_devices[0]))
+                # Don't remove the link if it's not actually being grouped
+                if group_devices[0].id in links_to_remove:
+                    links_to_remove.remove(str(group_devices[0].id))
 
-                nodes.append(
-                    {
-                        "id": str(device.id),
-                        "name": device.name,
-                        "siteId": str(site.id),
-                        "role": getattr(device.role, "name", "Unknown"),
-                        "type": "device",
-                        "status": ("active" if getattr(device.status, "name", "") == "Active" else "offline"),
-                        "primaryIp": primary_ip,
-                        "nautobotUrl": device.get_absolute_url(),
-                    }
-                )
-        # Efficient site-wide VLAN/Prefix aggregation for sidebar
-        descendant_vlan_ids = VLAN.objects.filter(location__in=locations).values_list("vid", "name")
-        for vid, name in descendant_vlan_ids:
-            available_vlans.add(f"{vid} - {name}")
+        # 4. Clean up links_map
+        # Remove original links to grouped APs
+        # We need to filter the original list
+        i = len(links_map) - 1
+        while i >= 0:
+            link = links_map[i]
+            s, t = link.get("source"), link.get("target")
+            if (s in links_to_remove or t in links_to_remove):
+                links_map.pop(i)
+            i -= 1
+            
+        links_map.extend(links_to_add)
 
-        descendant_prefixes = Prefix.objects.filter(location__in=locations).values_list("network", "prefix_length")
-        for network, length in descendant_prefixes:
-            available_prefixes.add(f"{network}/{length}")
-        return Response(
-            {
-                "status": "success",
-                "data": {
-                    "nodes": nodes,
-                    "links": links_map,
-                    "availableVlans": sorted(list(available_vlans)),
-                    "availablePrefixes": sorted(list(available_prefixes)),
-                    "config": {
-                        "topology_style": topology_style,
-                        "prometheus_enabled": prometheus_enabled,
-                        "ap_role_name": ap_role_name,
-                        "debug": plugin_config.get("debug", False),
-                    },
-                },
-            }
-        )
+        return nodes
+
+    def _format_device_node(self, site, device):
+        """Format a single device as a topology node."""
+        primary_ip = ""
+        if device.primary_ip4:
+            primary_ip = str(device.primary_ip4.address.ip)
+        elif device.primary_ip6:
+            primary_ip = str(device.primary_ip6.address.ip)
+
+        return {
+            "id": str(device.id),
+            "name": device.name,
+            "siteId": str(site.id),
+            "role": getattr(device.role, "name", "Unknown"),
+            "platform": getattr(device.platform, "name", "Unknown"),
+            "deviceType": getattr(device.device_type, "model", "Unknown"),
+            "vendor": getattr(device.device_type.manufacturer, "name", "Unknown"),
+            "status": "active" if getattr(device.status, "name", "") == "Active" else "offline",
+            "primaryIp": primary_ip,
+            "vlans": [],
+            "protocols": [],
+            "prefixes": [],
+            "nautobotUrl": device.get_absolute_url(),
+        }
+
+    def _format_group_node(self, site, devices, is_ap_group, ap_role_name, node_id=None):
+        """Format a group of devices as a single topology node."""
+        loc_obj = devices[0].location
+        group_name = f"{loc_obj.name} ({ap_role_name})" if is_ap_group else f"{loc_obj.name} (Other)"
+
+        inner_devices = []
+        for d in devices:
+            ip_str = str(d.primary_ip4.address.ip if d.primary_ip4 else (d.primary_ip6.address.ip if d.primary_ip6 else ""))
+            inner_devices.append(
+                {
+                    "id": str(d.id),
+                    "name": d.name,
+                    "role": getattr(d.role, "name", "Unknown"),
+                    "primaryIp": ip_str,
+                    "nautobotUrl": d.get_absolute_url(),
+                }
+            )
+
+        if not node_id:
+            node_id = f"group-{devices[0].location_id}-{'ap' if is_ap_group else 'other'}"
+
+        return {
+            "id": node_id,
+            "name": group_name,
+            "siteId": str(site.id),
+            "role": ap_role_name if is_ap_group else "Other",
+            "type": "group",
+            "deviceCount": len(devices),
+            "devices": inner_devices,
+            "status": "active",
+            "vendor": "Nautobot",
+            "description": f"Collection of {len(devices)} unconnected {'AP' if is_ap_group else 'device'}s in {loc_obj.name}",
+        }
+
+    def _get_site_vlans(self, locations):
+        """Aggregate all VLANs in the site hierarchy."""
+        return sorted(list(set(
+            f"{vid} - {name}" for vid, name in VLAN.objects.filter(location__in=locations).values_list("vid", "name")
+        )))
+
+    def _get_site_prefixes(self, locations):
+        """Aggregate all Prefixes in the site hierarchy."""
+        return sorted(list(set(
+            f"{net}/{len}" for net, len in Prefix.objects.filter(location__in=locations).values_list("network", "prefix_length")
+        )))
+
 
     @action(detail=True, methods=["get"])
     def metrics(self, request, pk=None):
-        """Return per‑link traffic metrics for a site.
-        The endpoint is optional – it only works if the plugin's Prometheus
-        integration is enabled via ``settings.PLUGINS_CONFIG['nautobot_topology']``.
-        It queries the Prometheus server defined in the plugin settings and
-        returns a mapping of link IDs to ``tx``, ``rx`` (bits per second) and a
-        simple ``utilization`` percentage (assuming a 1 Gbps link capacity).
-        """
-
-        # Load plugin configuration – fall back to defaults if missing
+        """Return per‑link traffic metrics for a site."""
         plugin_cfg = getattr(settings, "PLUGINS_CONFIG", {}).get("nautobot_topology", {})
         if not plugin_cfg.get("prometheus_enabled", False):
             return Response({"status": "success", "data": {"metrics": {}}})
-        prometheus_url = plugin_cfg.get("prometheus_url", "http://prometheus:9090")
-        query_tx_tpl = plugin_cfg.get("prometheus_query_tx")
-        query_rx_tpl = plugin_cfg.get("prometheus_query_rx")
+
         try:
             site = Location.objects.get(pk=pk)
         except Location.DoesNotExist:
             return Response({"status": "error", "message": "Site not found"}, status=404)
-        # Gather all devices including those in sub-locations (recursive)
-        location_ids = get_locations_for_site(site)
-        devices = Device.objects.filter(location_id__in=location_ids)
-        device_ids = list(devices.values_list("id", flat=True))
 
-        # Gather all cables that connect devices within this site (and sub-locations)
+        locations = get_locations_for_site(site)
+        device_ids = Device.objects.filter(location_id__in=locations).values_list("id", flat=True)
+
         cables = Cable.objects.filter(
             _termination_a_device_id__in=device_ids,
             _termination_b_device_id__in=device_ids,
         ).select_related("_termination_a_device", "_termination_b_device")
-        metrics = {}
-        # Assume a 1 Gbps capacity for utilization calculation (adjustable later)
+
+        metrics = self._fetch_prometheus_metrics(cables, plugin_cfg)
+        return Response({"status": "success", "data": {"metrics": metrics}})
+
+    def _fetch_prometheus_metrics(self, cables, plugin_cfg):
+        """Fetch metrics from Prometheus for the given cables."""
+        prometheus_url = plugin_cfg.get("prometheus_url", "http://prometheus:9090")
+        query_tx_tpl = plugin_cfg.get("prometheus_query_tx")
+        query_rx_tpl = plugin_cfg.get("prometheus_query_rx")
         capacity_bps = 1_000_000_000
+
+        metrics = {}
         for cable in cables:
-            # Resolve interface names – fall back to empty strings if missing
-            term_a = cable.termination_a
-            term_b = cable.termination_b
+            term_a, term_b = cable.termination_a, cable.termination_b
             if not (hasattr(term_a, "device") and hasattr(term_b, "device")):
                 continue
-            dev_a = term_a.device.name
-            dev_b = term_b.device.name
-            iface_a = term_a.name
-            iface_b = term_b.name
-            # Check for mock mode
-            if prometheus_url == "mock":
 
+            if prometheus_url == "mock":
                 tx_rate = random.uniform(10_000, 800_000_000)
                 rx_rate = random.uniform(10_000, 800_000_000)
-                utilization = ((tx_rate + rx_rate) / capacity_bps) * 100.0
             else:
-                # Build PromQL queries for both directions (A→B and B→A)
-                tx_query = query_tx_tpl.format(device=dev_a, interface=iface_a)
-                rx_query = query_rx_tpl.format(device=dev_b, interface=iface_b)
+                tx_rate = self._query_prometheus(prometheus_url, query_tx_tpl.format(device=term_a.device.name, interface=term_a.name)) or 0.0
+                rx_rate = self._query_prometheus(prometheus_url, query_rx_tpl.format(device=term_b.device.name, interface=term_b.name)) or 0.0
 
-                # Helper to perform a single query
-                def query_prometheus(q):
-                    try:
-                        resp = requests.get(
-                            f"{prometheus_url}/api/v1/query",
-                            params={"query": q},
-                            timeout=5,
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                        if data.get("status") == "success" and data.get("data", {}).get("result"):
-                            # Take the first series and the latest value
-                            value = float(data["data"]["result"][0]["value"][1])
-                            return value
-                    except Exception:
-                        return None
-                    return None
+            utilization = min(100.0, ((tx_rate + rx_rate) / capacity_bps) * 100.0)
+            metrics[str(cable.id)] = {"tx": tx_rate, "rx": rx_rate, "utilization": utilization}
 
-                tx_rate = query_prometheus(tx_query) or 0.0
-                rx_rate = query_prometheus(rx_query) or 0.0
-                utilization = min(100.0, ((tx_rate + rx_rate) / capacity_bps) * 100.0)
-            metrics[str(cable.id)] = {
-                "tx": tx_rate,
-                "rx": rx_rate,
-                "utilization": utilization,
-            }
-        return Response({"status": "success", "data": {"metrics": metrics}})
+        return metrics
+
+    def _query_prometheus(self, url, query):
+        """Helper to perform a single Prometheus query."""
+        try:
+            resp = requests.get(f"{url}/api/v1/query", params={"query": query}, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("status") == "success" and data.get("data", {}).get("result"):
+                return float(data["data"]["result"][0]["value"][1])
+        except Exception:
+            pass
+        return None
+
 
     @action(detail=True, methods=["get", "post"])
     def layout(self, request, pk=None):

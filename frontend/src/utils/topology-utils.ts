@@ -18,8 +18,8 @@ export const getLODLevel = (zoom: number) => {
   return 0;                      // Micro (dots)
 };
 export const isAP = (role: string, apRoleName?: string) => {
-  if (apRoleName) return role === apRoleName;
-  const r = role.toLowerCase();
+  const r = (role || '').toLowerCase();
+  if (apRoleName && r === apRoleName.toLowerCase()) return true;
   return r.includes('access') && r.includes('point');
 };
 export const formatInterfaceName = (name: string) => {

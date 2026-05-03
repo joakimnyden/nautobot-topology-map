@@ -305,9 +305,41 @@ def normalize_interface_name(name):
     return name
 
 
+def _build_component_map(device):
+    """Build a map of component names to their objects and types for a device."""
+    cmap = {}
+
+    def add_to_map(queryset, ctype):
+        for obj in queryset:
+            # Map original name and normalized name
+            cmap[obj.name.lower()] = (obj, ctype)
+            norm = normalize_interface_name(obj.name)
+            if norm != obj.name.lower():
+                cmap[norm] = (obj, ctype)
+
+    add_to_map(device.interfaces.all(), "interface")
+    if hasattr(device, "frontports"):
+        add_to_map(device.frontports.all(), "frontport")
+    if hasattr(device, "rearports"):
+        add_to_map(device.rearports.all(), "rearport")
+    if hasattr(device, "consoleports"):
+        add_to_map(device.consoleports.all(), "consoleport")
+    if hasattr(device, "consoleserverports"):
+        add_to_map(device.consoleserverports.all(), "consoleserverport")
+
+    return cmap
+
+
 def standardize_and_match_neighbors(local_device, raw_neighbors):
     """Match raw parsed neighbors to actual Nautobot objects."""
     results = []
+
+    # Pre-build local component map
+    local_cmap = _build_component_map(local_device)
+
+    # Cache for remote device lookups and their component maps
+    remote_device_cache = {}
+    remote_cmap_cache = {}
 
     for neighbor in raw_neighbors:
         local_iface_name = neighbor["local_interface"]
@@ -315,125 +347,74 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         remote_iface_name = neighbor["remote_interface"]
         remote_ip = neighbor.get("remote_ip")
 
-        # 1. Try to find the local component (Interface, FrontPort, RearPort, ConsolePort, ConsoleServerPort)
-        local_term_obj = None
-        local_term_type = None
+        # 1. Find local component
+        norm_local_name = normalize_interface_name(local_iface_name)
+        local_term_obj, local_term_type = local_cmap.get(norm_local_name, (None, None))
+        if not local_term_obj:
+            local_term_obj, local_term_type = local_cmap.get(local_iface_name.lower(), (None, None))
 
-        # Helper to find component by name
-        def find_component(device, name):
-            norm_name = normalize_interface_name(name)
-
-            # Check Interfaces
-            for iface in device.interfaces.all():
-                if normalize_interface_name(iface.name) == norm_name or iface.name.lower() == name.lower():
-                    return iface, "interface"
-
-            # Check FrontPorts
-            if hasattr(device, "frontports"):
-                for fp in device.frontports.all():
-                    if normalize_interface_name(fp.name) == norm_name or fp.name.lower() == name.lower():
-                        return fp, "frontport"
-
-            # Check RearPorts
-            if hasattr(device, "rearports"):
-                for rp in device.rearports.all():
-                    if normalize_interface_name(rp.name) == norm_name or rp.name.lower() == name.lower():
-                        return rp, "rearport"
-
-            # Check ConsolePorts
-            if hasattr(device, "consoleports"):
-                for cp in device.consoleports.all():
-                    if normalize_interface_name(cp.name) == norm_name or cp.name.lower() == name.lower():
-                        return cp, "consoleport"
-
-            # Check ConsoleServerPorts
-            if hasattr(device, "consoleserverports"):
-                for csp in device.consoleserverports.all():
-                    if normalize_interface_name(csp.name) == norm_name or csp.name.lower() == name.lower():
-                        return csp, "consoleserverport"
-
-            return None, None
-
-        local_term_obj, local_term_type = find_component(local_device, local_iface_name)
-
-        # 2. Try to find the remote device
+        # 2. Find remote device
         remote_dev_obj = None
-
-        # Strategy A: Exact match
-        possible_devices = Device.objects.filter(name=remote_dev_name)
-
-        # Strategy B: Case-insensitive exact match
-        if not possible_devices.exists():
+        if remote_dev_name in remote_device_cache:
+            remote_dev_obj = remote_device_cache[remote_dev_name]
+        else:
+            # Strategies for matching remote device
             possible_devices = Device.objects.filter(name__iexact=remote_dev_name)
 
-        # Strategy C: Short name match (if remote_dev_name has a domain)
-        if not possible_devices.exists() and "." in remote_dev_name:
-            short_name = remote_dev_name.split(".")[0]
-            possible_devices = Device.objects.filter(name__iexact=short_name)
+            if not possible_devices.exists() and "." in remote_dev_name:
+                short_name = remote_dev_name.split(".")[0]
+                possible_devices = Device.objects.filter(name__iexact=short_name)
 
-        # Strategy D: Check if any Nautobot device name contains this name as its hostname
-        if not possible_devices.exists():
-            # This handles case where remote_dev_name is "switch-01" but Nautobot has "switch-01.domain.com"
-            possible_devices = Device.objects.filter(name__istartswith=f"{remote_dev_name}.")
+            if not possible_devices.exists():
+                possible_devices = Device.objects.filter(name__istartswith=f"{remote_dev_name}.")
 
-        # Strategy E: Match by IP address (if provided)
-        if not possible_devices.exists() and remote_ip:
-            # Strip mask if present (e.g. 10.0.0.1/24 -> 10.0.0.1)
-            clean_ip = remote_ip.split("/")[0] if "/" in remote_ip else remote_ip
+            if not possible_devices.exists() and remote_ip:
+                clean_ip = remote_ip.split("/")[0] if "/" in remote_ip else remote_ip
+                possible_devices = Device.objects.filter(Q(primary_ip4__host=clean_ip) | Q(primary_ip6__host=clean_ip))
 
-            # Check primary IPv4 and IPv6
-            # Use Q object for robust OR filtering
-            possible_devices = Device.objects.filter(Q(primary_ip4__host=clean_ip) | Q(primary_ip6__host=clean_ip))
+            if not possible_devices.exists():
+                clean_mac = remote_dev_name.replace(".", "").replace(":", "").replace("-", "").upper()
+                if len(clean_mac) == 12 and all(c in "0123456789ABCDEF" for c in clean_mac):
+                    possible_devices = Device.objects.filter(interfaces__mac_address=remote_dev_name)
+                    if not possible_devices.exists():
+                        formatted_mac = ":".join(clean_mac[i : i + 2] for i in range(0, 12, 2))
+                        possible_devices = Device.objects.filter(interfaces__mac_address=formatted_mac)
 
-        # Strategy F: Match by MAC address (if remote_dev_name looks like one)
-        if not possible_devices.exists():
-            # Check if name is a MAC address
-            clean_mac = remote_dev_name.replace(".", "").replace(":", "").replace("-", "").upper()
-            if len(clean_mac) == 12 and all(c in "0123456789ABCDEF" for c in clean_mac):
-                # Search for any interface with this MAC address
+            if possible_devices.exists():
+                remote_dev_obj = possible_devices.first()
+                remote_device_cache[remote_dev_name] = remote_dev_obj
 
-                # Format clean_mac back to AA:BB:CC:DD:EE:FF for Nautobot comparison if needed,
-                # but Nautobot MACAddressField usually handles various formats or stored as hex
-                # In Nautobot 2.x, mac_address is a field.
-                possible_devices = Device.objects.filter(interfaces__mac_address=remote_dev_name)
-                if not possible_devices.exists():
-                    # Try with standardized colon format
-                    formatted_mac = ":".join(clean_mac[i : i + 2] for i in range(0, 12, 2))
-                    possible_devices = Device.objects.filter(interfaces__mac_address=formatted_mac)
-
-        if possible_devices.exists():
-            remote_dev_obj = possible_devices.first()
-
-        # 3. Try to find the remote component
+        # 3. Find remote component
         remote_term_obj = None
         remote_term_type = None
         if remote_dev_obj:
-            remote_term_obj, remote_term_type = find_component(remote_dev_obj, remote_iface_name)
+            dev_id = str(remote_dev_obj.id)
+            if dev_id not in remote_cmap_cache:
+                remote_cmap_cache[dev_id] = _build_component_map(remote_dev_obj)
+
+            rcmap = remote_cmap_cache[dev_id]
+            norm_remote_name = normalize_interface_name(remote_iface_name)
+            remote_term_obj, remote_term_type = rcmap.get(norm_remote_name, (None, None))
+            if not remote_term_obj:
+                remote_term_obj, remote_term_type = rcmap.get(remote_iface_name.lower(), (None, None))
 
         # Check if cable already exists
-        cable_exists = False
-        if local_term_obj and hasattr(local_term_obj, "cable") and local_term_obj.cable:
-            cable_exists = True
+        cable_exists = bool(local_term_obj and getattr(local_term_obj, "cable", None))
 
         # Check LAG membership
-        local_lag_name = None
-        if local_term_type == "interface" and local_term_obj.lag:
-            local_lag_name = local_term_obj.lag.name
-
-        remote_lag_name = None
-        if remote_term_type == "interface" and remote_term_obj.lag:
-            remote_lag_name = remote_term_obj.lag.name
+        local_lag_name = local_term_obj.lag.name if local_term_type == "interface" and local_term_obj.lag else None
+        remote_lag_name = remote_term_obj.lag.name if remote_term_type == "interface" and remote_term_obj.lag else None
 
         results.append(
             {
                 "local_interface": local_iface_name,
-                "local_interface_id": (str(local_term_obj.id) if local_term_obj else None),
+                "local_interface_id": str(local_term_obj.id) if local_term_obj else None,
                 "local_interface_type": local_term_type,
                 "local_lag": local_lag_name,
                 "remote_device": remote_dev_name,
                 "remote_device_id": str(remote_dev_obj.id) if remote_dev_obj else None,
                 "remote_interface": remote_iface_name,
-                "remote_interface_id": (str(remote_term_obj.id) if remote_term_obj else None),
+                "remote_interface_id": str(remote_term_obj.id) if remote_term_obj else None,
                 "remote_interface_type": remote_term_type,
                 "remote_lag": remote_lag_name,
                 "remote_ip": remote_ip,
@@ -444,3 +425,4 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         )
 
     return results
+

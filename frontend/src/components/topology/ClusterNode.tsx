@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import { Layers, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Device } from '../../types';
@@ -18,6 +18,7 @@ export const ClusterNode = React.memo(({ data }: ClusterNodeProps) => {
   const { count, parentName, devices, iconStyle, lod } = data;
   const isFancy = iconStyle === 'fancy';
   const [expanded, setExpanded] = useState(false);
+  const zoom = useStore((s: any) => s.transform[2]);
 
   if (lod === 0) {
     return (
@@ -75,38 +76,41 @@ export const ClusterNode = React.memo(({ data }: ClusterNodeProps) => {
       <AnimatePresence>
         {expanded && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className={`absolute top-full mt-2 z-[1000] w-64 border rounded-xl overflow-hidden shadow-2xl pointer-events-auto ${isFancy ? 'bg-slate-900/95 backdrop-blur-xl border-slate-700/50' : 'bg-slate-900 border-slate-700'}`}
+            initial={{ opacity: 0, y: 10, scale: 0.95 / zoom }}
+            animate={{ opacity: 1, y: 0, scale: 1 / zoom }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 / zoom }}
+            className={`absolute top-full mt-3 z-[1000] w-80 border rounded-2xl overflow-hidden shadow-2xl pointer-events-auto origin-top ${isFancy ? 'bg-slate-900/95 backdrop-blur-2xl border-slate-700/50' : 'bg-slate-900 border-slate-700'}`}
+            style={{ 
+              transformOrigin: 'top center'
+            }}
           >
-            <div className="p-3 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
-               <span className="text-xs font-bold text-white tracking-wider">{parentName ? `Devices on ${parentName}` : 'Unconnected Devices'}</span>
-               <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded-md font-mono">{count} items</span>
+            <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+               <span className="text-sm font-bold text-white tracking-tight">{parentName ? `Devices on ${parentName}` : 'Unconnected Devices'}</span>
+               <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-lg font-mono border border-slate-700/50">{count} items</span>
             </div>
-            <div className="max-h-48 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 pointer-events-auto nowheel nodrag">
+            <div className="max-h-64 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2 pointer-events-auto nowheel nodrag">
               {devices?.slice(0, 100).map((dev, i) => (
                 <a 
                   key={dev.id || i} 
                   href={dev.nautobotUrl || '#'} 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="block p-2 bg-slate-800/40 hover:bg-slate-700/80 rounded-lg transition-all cursor-pointer border border-transparent hover:border-blue-500/50 group/item !no-underline !text-inherit"
+                  className="block p-3 bg-slate-800/40 hover:bg-slate-700/80 rounded-xl transition-all cursor-pointer border border-transparent hover:border-emerald-500/50 group/item !no-underline !text-inherit shadow-sm"
                 >
                   <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold !text-slate-200 group-hover/item:!text-white transition-colors">{dev.name}</span>
+                    <span className="text-xs font-bold !text-slate-200 group-hover/item:!text-white transition-colors">{dev.name}</span>
                     {dev.nautobotUrl && (
-                      <ExternalLink className="w-3 h-3 text-slate-500 group-hover/item:text-slate-300 transition-colors" />
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-500 group-hover/item:text-slate-300 transition-colors" />
                     )}
                   </div>
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-[9px] text-slate-500 uppercase font-bold">{dev.role || 'Device'}</span>
-                    <span className="text-[9px] font-mono text-emerald-400">{dev.primaryIp || ''}</span>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest">{dev.role || 'Device'}</span>
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold">{dev.primaryIp || ''}</span>
                   </div>
                 </a>
               ))}
               {devices && devices.length > 100 && (
-                <div className="p-2 text-center text-[9px] text-slate-500 italic bg-slate-800/20 rounded-lg mt-1 border border-dashed border-slate-700/50">
+                <div className="p-3 text-center text-[9px] text-slate-500 italic bg-slate-800/20 rounded-xl mt-1 border border-dashed border-slate-700/50">
                   Showing first 100 of {devices.length} devices
                 </div>
               )}
