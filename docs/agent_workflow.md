@@ -36,6 +36,10 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 
 ### Frontend (UI/UX & Performance)
 - **Aesthetics**: Premium Catppuccin Macchiato palette (`ctp-crust`, `ctp-mantle`, `ctp-surface0/1`), minimalist typographic controls (pipe-separated `|`), and Framer Motion Toast notifications. High-fidelity PNG exports exclude UI controls (`pointer-events-auto`).
+- **UI Patterns**:
+  - **Scrollability**: Use `.custom-scrollbar` class for data-dense containers (dropdowns, tables) to ensure consistent, non-intrusive scrolling.
+  - **Tables**: Apply `whitespace-nowrap` to table cells containing long network names (Discovery Results) to facilitate clean horizontal scrolling.
+  - **Popups**: Standardize expanded node popups (GroupNode, ClusterNode) to `w-80` (320px) and `rounded-2xl` for layout parity with tooltips.
 - **Interactivity**: Double-clicking nodes/links navigates directly to their Nautobot detail pages. Layouts are saved via `/api/plugins/nautobot_topology/topology/<pk>/layout/`.
 - **Data Discovery**: 
   - **BGP**: Discover peerings via `nautobot-bgp-models` (use `source_ip` to identify endpoints).
@@ -46,6 +50,7 @@ Follow these steps strictly for *every* task to ensure consistency and stability
     - **Simulator**: Hybrid simulation mode enabled via `discovery_simulator_enabled` in `nautobot_config.py`.
       - **Frontend**: Adds a "✨ Discovery Simulator" device with hardcoded mock results.
       - **Backend**: The `discover_neighbors` API returns simulated neighbors for *any* device using database lookups of nearby devices, bypassing SSH connectivity.
+    - **Modular Frontend**: The discovery UI is decomposed into atomic components (`DiscoveryHeader`, `DiscoveryControlPanel`, `DiscoveryResultsTable`, `DiscoverySummary`) to separate layout from state logic.
     - **Matching Logic**:
       - Matches remote devices using:
         1. Exact case-insensitive Name match
@@ -60,6 +65,9 @@ Follow these steps strictly for *every* task to ensure consistency and stability
   - Use React Flow's `onlyRenderVisibleElements={true}` and implement Level of Detail (LOD) zoom thresholds to cull DOM nodes.
 - **Edge Aggregation**: In high-density sites (> 1000 links), multiple cables between the same node pair are aggregated into a single visual edge with a count label (e.g., "x12 Cables").
 - **Leaf Stacking (ClusterNode)**: For sites with > 1000 nodes, all "leaf" nodes (exactly 1 neighbor) are automatically grouped into a `ClusterNode` (e.g., "Devices on Switch-01"). This prevents massive horizontal sprawl by collapsing thousands of leaf devices into single interactive clusters.
+- **GroupNode**: 
+  - **Unconnected**: Site-level grouping for unconnected devices or APs (controlled by `ap_role_name`).
+  - **Connected APs**: Leaf Access Points connected to a single upstream switch are automatically aggregated into a `GroupNode` tied directly to that switch. This preserves connectivity context while drastically reducing visual clutter in wireless-heavy sites.
 - **Layout Sprawl**: To prevent horizontal graphs from exceeding massive dimensions (> 10k pixels), implement grid-based wrapping for nodes within the same rank when count exceeds 50.
 - **Edge Routing**: To prevent links from passing through node boxes, use a 4-handle system (Top, Bottom, Left, Right).
 
@@ -70,6 +78,9 @@ Follow these steps strictly for *every* task to ensure consistency and stability
 - **Tree Queries**: ALWAYS evaluate `site.descendants()` querysets using `list(...values_list('id', flat=True))` to avoid PostgreSQL CTE subquery errors.
 - **Grouping Logic**: Unconnected devices are aggregated by location. Identification of Access Points (APs) for grouping and stacking is controlled by the `ap_role_name` plugin setting. For high-density sites, leaf stacking is applied generically to all device types via `ClusterNode` to maintain layout readability.
 - **Layout Ranks**: 0 (Firewall/Cloud) to 8 (Generic). Dagre layout uses `ranker: 'network-simplex'` to force top-to-bottom flow regardless of link direction.
+- **Modular ViewSets**: To maintain API scalability, monolithic `retrieve` actions must be decomposed into focused private helper methods (e.g., `_get_cable_links`, `_build_topology_nodes`).
+- **Discovery Optimization**: Neighbor matching must avoid O(N*M) iterative component lookups. Use `_build_component_map` to pre-calculate interface/port maps into a single dictionary for O(1) matching during discovery.
+- **Caching**: Implement context-aware caching for remote device lookups and their respective component maps during batch discovery operations to minimize database load.
 
 ## 4. Testing Standards (80% Coverage Required)
 - **Backend**: Execute via `uv run invoke test`. Follow Nautobot's official API testing framework standards.
