@@ -47,15 +47,16 @@ export const DeviceNode = React.memo(({ data }: DeviceNodeProps) => {
     }
     return (
       <IconComponent
-        color={isFancy ? '#22d3ee' : undefined}
-        className={`${size} ${isFancy ? 'text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.6)]' : roleConfig.color}`}
+        color={(isFancy && lod >= 2) ? '#22d3ee' : undefined}
+        className={`${size} ${(isFancy && lod >= 2) ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]' : roleConfig.color}`}
       />
     );
   };
+
   if (lod === 0) {
     return (
       <div 
-        className={`w-4 h-4 rounded-full border border-white/20 shadow-[0_0_10px_rgba(0,0,0,0.5)] ${roleConfig.bgColor.replace('bg-', 'bg-opacity-80 bg-')} cursor-pointer transition-all duration-300 hover:scale-150 hover:bg-white`}
+        className={`w-4 h-4 rounded-full border border-white/20 shadow-lg ${roleConfig.bgColor.replace('bg-', 'bg-opacity-80 bg-')} cursor-pointer transition-all duration-300 hover:scale-150 hover:bg-white`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -70,6 +71,7 @@ export const DeviceNode = React.memo(({ data }: DeviceNodeProps) => {
       </div>
     );
   }
+
   return (
     <div
       className="relative flex flex-col items-center gap-2 group w-[120px]"
@@ -77,13 +79,13 @@ export const DeviceNode = React.memo(({ data }: DeviceNodeProps) => {
       onMouseLeave={handleMouseLeave}
     >
       <div className={`${lod === 1 ? 'w-10 h-10 rounded-xl' : 'w-14 h-14 rounded-2xl'} border transition-all duration-500 flex items-center justify-center p-3 relative overflow-hidden ${hasQuery && !isHighlighted ? 'opacity-20 scale-90 blur-[0.5px]' : 'opacity-100 scale-100'
-        } ${iconStyle === 'fancy'
+        } ${(iconStyle === 'fancy' && lod >= 2)
           ? 'bg-slate-900/40 backdrop-blur-xl shadow-2xl ring-1 ring-white/20 border-white/5'
           : 'bg-slate-900 shadow-sm border-slate-700/40'
         } ${isHighlighted ? 'border-blue-500/80 ring-2 ring-blue-500/30' : ''
         } hover:border-white/40 hover:bg-slate-800/80 transition-shadow`}>
         
-        {iconStyle === 'fancy' && lod >= 2 && (
+        {(iconStyle === 'fancy' && lod >= 2) && (
           <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         )}
         
@@ -93,7 +95,7 @@ export const DeviceNode = React.memo(({ data }: DeviceNodeProps) => {
         <Handle type="target" position={Position.Left} id="t-l" className="!opacity-0 !w-0 !h-0" />
         <Handle type="target" position={Position.Right} id="t-r" className="!opacity-0 !w-0 !h-0" />
         
-        <div className={`transition-all duration-500 group-hover:scale-110 ${lod >= 2 ? 'drop-shadow-[0_0_10px_rgba(255,255,255,0.15)]' : ''}`}>
+        <div className={`transition-all duration-500 group-hover:scale-110 ${lod >= 2 ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]' : ''}`}>
           {getIcon(lod === 1 ? "w-5 h-5" : "w-7 h-7")}
         </div>
 

@@ -39,7 +39,7 @@ export const GroupNode = React.memo(({ data }: GroupNodeProps) => {
     <div className="relative flex flex-col items-center gap-2 group w-[140px]">
       <div 
         onClick={() => setExpanded(!expanded)}
-        className={`${lod === 1 ? 'w-10 h-10 rounded-xl' : 'w-14 h-14 rounded-2xl'} border transition-all duration-500 flex items-center justify-center p-3 relative cursor-pointer ${isFancy
+        className={`${lod === 1 ? 'w-10 h-10 rounded-xl' : 'w-14 h-14 rounded-2xl'} border transition-all duration-500 flex items-center justify-center p-3 relative cursor-pointer ${(isFancy && lod >= 2)
           ? 'bg-slate-900/40 backdrop-blur-xl shadow-2xl ring-1 ring-white/20 border-white/5'
           : 'bg-slate-900 shadow-sm border-slate-700/40'
         } hover:border-blue-500/50 hover:bg-slate-800/80 transition-shadow`}>
@@ -50,7 +50,7 @@ export const GroupNode = React.memo(({ data }: GroupNodeProps) => {
         <Handle type="target" position={Position.Right} id="t-r" className="!opacity-0 !w-0 !h-0" />
         
         <div className="relative flex items-center justify-center">
-          <Box className={`${lod === 1 ? 'w-5 h-5' : 'w-7 h-7'} ${isFancy ? 'text-blue-400 drop-shadow-[0_0_10px_rgba(59,130,246,0.6)]' : 'text-blue-400'}`} />
+          <Box className={`${lod === 1 ? 'w-5 h-5' : 'w-7 h-7'} ${(isFancy && lod >= 2) ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'text-blue-400'}`} />
           {lod >= 2 && (
             <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-lg shadow-lg">
               {deviceCount}

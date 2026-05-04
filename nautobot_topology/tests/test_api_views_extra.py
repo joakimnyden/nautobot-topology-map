@@ -48,20 +48,23 @@ class TopologyViewSetExtraTest(TestCase):
     ):
 
         mock_site = MagicMock()
-        mock_site.id = "123"
+        mock_site.id = "123e4567-e89b-12d3-a456-426614174000"
         mock_site.name = "Site 1"
-        mock_site.descendants.return_value.values_list.return_value = ["123"]
+        mock_site.descendants.return_value.values_list.return_value = [
+            "123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174004"
+        ]
         mock_get_loc.return_value = mock_site
 
         # Device with VLANs, IP addresses, and IPv6
         dev1 = MagicMock()
-        dev1.id = "dev1"
+        dev1.id = "123e4567-e89b-12d3-a456-426614174002"
         dev1.name = "Dev 1"
         dev1.role.name = "Edge"
         dev1.status.name = "Active"
         dev1.primary_ip4 = None
         dev1.primary_ip6.address.ip = "2001:db8::1"
-        dev1.location_id = "loc1"
+        dev1.location_id = "123e4567-e89b-12d3-a456-426614174000"
 
         iface = MagicMock()
         iface.untagged_vlan.vid = 10
@@ -77,11 +80,11 @@ class TopologyViewSetExtraTest(TestCase):
 
         # Device 2: Unconnected AP
         dev2 = MagicMock()
-        dev2.id = "dev2"
+        dev2.id = "123e4567-e89b-12d3-a456-426614174003"
         dev2.name = "AP 1"
         dev2.status.name = "Active"
         dev2.role.name = "Access Point"
-        dev2.location_id = "loc1"
+        dev2.location_id = "123e4567-e89b-12d3-a456-426614174004"
         dev2.location = MagicMock()
         dev2.location.name = "Loc 1"
         dev2.interfaces.all.return_value = []
@@ -129,7 +132,7 @@ class TopologyViewSetExtraTest(TestCase):
     @patch("nautobot_topology.api.views.Location.objects.filter")
     def test_list_missing_coords(self, mock_filter, mock_cache_get, mock_cache_set):
         site1 = MagicMock()
-        site1.id = "1"
+        site1.id = "123e4567-e89b-12d3-a456-426614174000"
         site1.name = "S1"
         site1.latitude = 10.0
         site1.longitude = 10.0
@@ -137,13 +140,17 @@ class TopologyViewSetExtraTest(TestCase):
         site1.device_count = 1
 
         site2 = MagicMock()
-        site2.id = "2"
+        site2.id = "123e4567-e89b-12d3-a456-426614174001"
         site2.latitude = None
         site2.longitude = 10.0
 
         mock_qs = MagicMock()
-        mock_qs.select_related.return_value.annotate.return_value = [site1, site2]
+        mock_qs.distinct.return_value.select_related.return_value.annotate.return_value = [site1, site2]
         mock_filter.return_value = mock_qs
+
+        # Mock descendants for both sites
+        site1.descendants.return_value.values_list.return_value = [site1.id]
+        site2.descendants.return_value.values_list.return_value = [site2.id]
 
         from django.contrib.auth import get_user_model
 
