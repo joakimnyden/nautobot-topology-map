@@ -313,51 +313,39 @@ def discover_neighbors(device_id):
 
 def _extract_neighbor_data(entry):
     """Helper to extract neighbor data from various TextFSM template formats."""
+    # Normalize keys to uppercase for case-insensitive lookup
+    e = {k.upper(): v for k, v in entry.items()}
+
     # Local interface keys
-    local_iface = (
-        entry.get("LOCAL_INTERFACE")
-        or entry.get("LOCAL_PORT")
-        or entry.get("local_interface")
-        or entry.get("local_port")
-        or ""
-    )
+    local_iface = e.get("LOCAL_INTERFACE") or e.get("LOCAL_PORT") or ""
 
     # Remote device keys
     remote_dev = (
-        entry.get("NEIGHBOR_NAME")
-        or entry.get("NEIGHBOR_ID")
-        or entry.get("DESTINATION_HOST")
-        or entry.get("neighbor")
-        or entry.get("NEIGHBOR")
-        or entry.get("CHASSIS_ID")
-        or entry.get("destination_host")
+        e.get("NEIGHBOR_NAME")
+        or e.get("NEIGHBOR_ID")
+        or e.get("DESTINATION_HOST")
+        or e.get("NEIGHBOR")
+        or e.get("CHASSIS_ID")
+        or e.get("SYSTEM_NAME")
+        or e.get("HOST_NAME")
         or ""
     )
 
     # Remote interface keys
     remote_iface = (
-        entry.get("NEIGHBOR_PORT_ID")
-        or entry.get("NEIGHBOR_INTERFACE")
-        or entry.get("REMOTE_PORT")
-        or entry.get("neighbor_interface")
-        or entry.get("remote_port")
-        or entry.get("REMOTE_INTERFACE")
+        e.get("NEIGHBOR_PORT_ID")
+        or e.get("NEIGHBOR_INTERFACE")
+        or e.get("REMOTE_PORT")
+        or e.get("REMOTE_INTERFACE")
         or ""
     )
 
     # Remote IP keys
-    remote_ip = (
-        entry.get("MGMT_ADDRESS")
-        or entry.get("MANAGEMENT_IP")
-        or entry.get("management_ip")
-        or entry.get("ADDRESS")
-        or entry.get("address")
-        or ""
-    )
+    remote_ip = e.get("MGMT_ADDRESS") or e.get("MANAGEMENT_IP") or e.get("ADDRESS") or ""
 
     if not remote_dev:
-        debug_log(f"    DEBUG: Failed to find remote_dev. Entry keys: {list(entry.keys())}")
-        debug_log(f"    DEBUG: Raw entry values for common keys: NEIGHBOR_NAME={entry.get('NEIGHBOR_NAME')}, NEIGHBOR_ID={entry.get('NEIGHBOR_ID')}, CHASSIS_ID={entry.get('CHASSIS_ID')}")
+        debug_log(f"    DEBUG: Failed to find remote_dev. Available keys (upper): {list(e.keys())}")
+        debug_log(f"    DEBUG: Raw entry values: {entry}")
 
     return local_iface, remote_dev, remote_iface, remote_ip
 
