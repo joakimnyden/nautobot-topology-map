@@ -329,7 +329,8 @@ class TopologyViewSet(ViewSet):
         ap_ids = set()
         for device in devices:
             role_name = str(getattr(device.role, "name", "") or "")
-            if role_name.lower() in [ap_role_name.lower(), "access point", "ap"]:
+            is_ap_match = role_name.lower() in [ap_role_name.lower(), "access point", "ap"]
+            if is_ap_match:
                 ap_ids.add(str(device.id))
 
         # Map devices to their neighbors (only considering physical/logical links in this site)
