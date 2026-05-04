@@ -336,12 +336,12 @@ def _extract_neighbor_data(entry):
 
     # Remote interface keys
     remote_iface = (
-        entry.get("NEIGHBOR_INTERFACE")
+        entry.get("NEIGHBOR_PORT_ID")
+        or entry.get("NEIGHBOR_INTERFACE")
         or entry.get("REMOTE_PORT")
         or entry.get("neighbor_interface")
         or entry.get("remote_port")
         or entry.get("REMOTE_INTERFACE")
-        or entry.get("NEIGHBOR_PORT_ID")
         or ""
     )
 
