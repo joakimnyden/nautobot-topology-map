@@ -245,7 +245,7 @@ export function useTopologyData({
       
       if (!sourceDev || !targetDev) return;
 
-      const shouldAggregate = links.length > 1000 && group.length > 1;
+      const shouldAggregate = (links.length > 200 && group.length > 1) || (lod < 2 && group.length > 1);
 
       if (shouldAggregate) {
         const isSelected = group.some(l => l.id === selectedEdgeId);
@@ -257,8 +257,8 @@ export function useTopologyData({
           id: `agg-${pairKey}`,
           source: sId,
           target: tId,
-          type: links.length > 500 ? 'straight' : 'smoothstep',
-          hidden: zoom < 0.15 && links.length > 2000,
+          type: (links.length > 300 || lod < 2) ? 'straight' : 'smoothstep',
+          hidden: zoom < 0.1 && links.length > 500,
           label: zoom > 0.4 ? `x${group.length} Cables` : undefined,
           data: { curvature: 0 },
           labelStyle: {
@@ -273,7 +273,12 @@ export function useTopologyData({
             strokeWidth: 3 + Math.min(group.length, 5),
             opacity: (filterValue || selectedEdgeId || selectedNodeId) && !hasHovered && !isSelected ? 0.3 : 0.8,
             strokeDasharray: hasLogical && !hasLAG ? '8,4' : 'none',
-            filter: (hasHovered || isSelected) ? `drop-shadow(0 0 8px #fbbf24)` : 'none',
+            // Disable expensive filters for aggregated edges unless hovered/selected OR in fancy mode at high zoom
+            filter: (hasHovered || isSelected) 
+              ? `drop-shadow(0 0 8px ${hasHovered ? '#fbbf24' : '#fbbf24'})` 
+              : (hasLAG && iconStyle === 'fancy' && zoom > 0.5 && links.length < 500)
+                ? `drop-shadow(0 0 6px #818cf866)`
+                : 'none',
           },
         });
       } else {
@@ -313,16 +318,16 @@ export function useTopologyData({
           );
 
           const forceStraight = link.isPortChannel || (link.type === 'physical' && isSpineLeafOrCoreDist);
-          const edgeType = isLogical || (group.length > 1) ? 'bezier' : (forceStraight ? 'straight' : (links.length > 500 ? 'straight' : 'smoothstep'));
+          const edgeType = isLogical || (group.length > 1) ? 'bezier' : (forceStraight ? 'straight' : (links.length > 300 || lod < 2 ? 'straight' : 'smoothstep'));
 
           edges.push({
             id: link.id,
             source: sId,
             target: tId,
             type: edgeType,
-            hidden: links.length > 5000 && zoom < 0.1,
-            animated: (link.id === hoveredEdgeId || isSelected || isRelatedToSelection || (isEdgeHighlighted && links.length < 500)) && !link.isPortChannel && (link.type !== 'physical' || isRelatedToSelection || isSelected),
-            label: links.length > 1500 && !isSelected && !isRelatedToSelection ? undefined : label,
+            hidden: (links.length > 2000 && zoom < 0.1) || (links.length > 500 && zoom < 0.05),
+            animated: (link.id === hoveredEdgeId || isSelected || isRelatedToSelection) && !link.isPortChannel && (link.type !== 'physical' || isRelatedToSelection || isSelected) && links.length < 1000,
+            label: (links.length > 1000 || lod < 2) && !isSelected && !isRelatedToSelection ? undefined : label,
             data: { curvature: isLogical ? (edgeIndex % 2 === 0 ? 0.35 : -0.35) : (edgeIndex === 0 || forceStraight ? 0 : (edgeIndex % 2 === 0 ? 0.2 : -0.2)) },
             labelStyle: {
               fill: isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : (link.type === 'physical' ? '#94a3b8' : (link.type === 'port-channel' ? '#a5b4fc' : '#10b981'))),
@@ -338,9 +343,12 @@ export function useTopologyData({
               strokeWidth: link.isPortChannel ? 5 : (isEdgeHighlighted ? 5 : (isSelected || isRelatedToSelection ? 4 : (link.type === 'physical' ? 2 : 1.5))),
               opacity: (filterValue || selectedEdgeId || selectedNodeId) && !isEdgeHighlighted && !isSelected && !isRelatedToSelection ? 0.2 : 1,
               strokeDasharray: isLogical ? '8,4' : 'none',
-              filter: (link.type === 'port-channel' || isEdgeHighlighted || isSelected || isRelatedToSelection) 
-                ? `drop-shadow(0 0 8px ${isEdgeHighlighted ? '#fbbf24' : (isSelected || isRelatedToSelection ? '#38bdf8' : '#818cf8')})` 
+              // Use a much faster filter only for selection/hover
+              filter: (isEdgeHighlighted || isSelected) 
+                ? `drop-shadow(0 0 8px ${isEdgeHighlighted ? '#fbbf24' : '#38bdf8'})`
                 : 'none',
+              // For port-channels, we use a distinct color and width instead of an expensive glow filter
+              // unless specifically hovered or selected.
             },
           });
         });

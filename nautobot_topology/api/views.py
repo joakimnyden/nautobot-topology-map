@@ -329,7 +329,8 @@ class TopologyViewSet(ViewSet):
         ap_ids = set()
         for device in devices:
             role_name = str(getattr(device.role, "name", "") or "")
-            if role_name.lower() in [ap_role_name.lower(), "access point", "ap"]:
+            is_ap_match = role_name.lower() in [ap_role_name.lower(), "access point", "ap"]
+            if is_ap_match:
                 ap_ids.add(str(device.id))
 
         # Map devices to their neighbors (only considering physical/logical links in this site)
@@ -699,7 +700,7 @@ class TopologyViewSet(ViewSet):
                 cable = Cable(
                     termination_a=term_a,
                     termination_b=term_b,
-                    type=cable_spec.get("type", "cat6a"),
+                    type=cable_spec.get("type", "other"),
                     status=active_status,
                 )
                 cable.validated_save()
@@ -714,3 +715,42 @@ class TopologyViewSet(ViewSet):
                 "errors": errors,
             }
         )
+
+    @action(detail=False, methods=["get"])
+    def cable_choices(self, request):
+        """Return available cable type choices from Nautobot, flattening grouped choices if necessary."""
+        try:
+            from nautobot.dcim.choices import CableTypeChoices
+
+            raw_choices = CableTypeChoices.CHOICES
+            choices = []
+            
+            for item in raw_choices:
+                # Nautobot/Django choices can be (value, label) or (group_name, list_of_choices)
+                if len(item) == 2 and isinstance(item[1], (list, tuple)):
+                    # Grouped choice: (group_name, [(v1, l1), (v2, l2)])
+                    for subitem in item[1]:
+                        if len(subitem) == 2:
+                            choices.append({"value": subitem[0], "label": subitem[1]})
+                elif len(item) == 2:
+                    # Flat choice: (value, label)
+                    choices.append({"value": item[0], "label": item[1]})
+
+            # Remove duplicates just in case
+            unique_choices = []
+            seen_values = set()
+            for c in choices:
+                if c["value"] not in seen_values:
+                    unique_choices.append(c)
+                    seen_values.add(c["value"])
+
+            return Response({"status": "success", "results": unique_choices})
+        except Exception as e:
+            # Fallback to some defaults if Nautobot choices can't be loaded
+            defaults = [
+                {"value": "cat6", "label": "Cat6"},
+                {"value": "cat6a", "label": "Cat6a"},
+                {"value": "fiber-lc", "label": "Fiber (LC)"},
+                {"value": "dac", "label": "DAC"},
+            ]
+            return Response({"status": "partial", "results": defaults, "error": str(e)})

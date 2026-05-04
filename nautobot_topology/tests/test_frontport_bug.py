@@ -1,12 +1,13 @@
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
-from rest_framework.test import APIRequestFactory
-from nautobot_topology.api.views import TopologyViewSet
+from rest_framework.test import APITestCase
+from django.contrib.auth import get_user_model
 
 
-class FrontPortBugTest(TestCase):
+class FrontPortBugTest(APITestCase):
     def setUp(self):
-        self.factory = APIRequestFactory()
+        User = get_user_model()
+        self.user = User.objects.create(username="testuser", is_superuser=True, is_staff=True)
+        self.client.force_authenticate(user=self.user)
 
     @patch("nautobot.dcim.models.Interface.objects.filter")
     @patch("nautobot.dcim.models.FrontPort.objects.filter")
@@ -75,10 +76,7 @@ class FrontPortBugTest(TestCase):
         mock_vlan_filter.return_value.values_list.return_value = []
         mock_prefix_filter.return_value.values_list.return_value = []
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/")
-        view = TopologyViewSet.as_view({"get": "retrieve"})
-
         # This should NOT CRASH with KeyError
-        response = view(request, pk="123")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/")
 
         self.assertEqual(response.status_code, 200)

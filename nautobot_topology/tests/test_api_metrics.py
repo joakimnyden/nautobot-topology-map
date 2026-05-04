@@ -1,36 +1,36 @@
 from unittest.mock import patch, MagicMock
-from django.test import TestCase, override_settings
-from django.contrib.auth import get_user_model
-from rest_framework.test import APIRequestFactory, force_authenticate
+from django.test import override_settings
+from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
 from nautobot_topology.api.views import TopologyViewSet
+from django.contrib.auth import get_user_model
 
 
-class TopologyMetricsTest(TestCase):
+class TopologyMetricsTest(APITestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = TopologyViewSet.as_view({"get": "metrics"})
         User = get_user_model()
-        self.user = User.objects.create(username="testuser", is_superuser=True)
+        self.user = User.objects.create(username="testuser", is_superuser=True, is_staff=True)
+        self.client.force_authenticate(user=self.user)
 
     @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"prometheus_enabled": False}})
     @patch("nautobot_topology.api.views.cache.set")
     @patch("nautobot_topology.api.views.Location.objects.get")
     def test_metrics_disabled(self, mock_get_loc, mock_cache_set):
         mock_get_loc.return_value = MagicMock()
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
-        response = self.view(request, pk="123")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
         self.assertEqual(response.data["data"]["metrics"], {})
 
+    @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"prometheus_enabled": True}})
     @patch("nautobot_topology.api.views.Location.objects.get")
     def test_metrics_site_not_found(self, mock_get_loc):
         import nautobot.dcim.models as dcim_models
 
         mock_get_loc.side_effect = dcim_models.Location.DoesNotExist
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/nonexistent/metrics/")
-        response = self.view(request, pk="nonexistent")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/nonexistent/metrics/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["status"], "error")
 
@@ -69,8 +69,7 @@ class TopologyMetricsTest(TestCase):
         mock_cable_qs.select_related.return_value = [mock_cable]
         mock_cable_filter.return_value = mock_cable_qs
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
-        response = self.view(request, pk="123")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
@@ -116,8 +115,7 @@ class TopologyMetricsTest(TestCase):
         mock_cable_qs.select_related.return_value = [mock_cable]
         mock_cable_filter.return_value = mock_cable_qs
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
-        response = self.view(request, pk="123")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["metrics"], {})
 
@@ -169,9 +167,7 @@ class TopologyMetricsTest(TestCase):
         }
         mock_requests_get.return_value = mock_resp
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
-        force_authenticate(request, user=self.user)
-        response = self.view(request, pk="123")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_requests_get.call_count, 2)  # TX and RX queries
@@ -217,7 +213,6 @@ class TopologyMetricsTest(TestCase):
         # Mock Prometheus error (line 365-367)
         mock_requests_get.side_effect = Exception("Network error")
 
-        request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
-        response = self.view(request, pk="123")
+        response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["metrics"]["cable1"]["tx"], 0.0)

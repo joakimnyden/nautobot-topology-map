@@ -87,6 +87,9 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'T
     // Influence ranking: Physical/LAG links have higher weight than BGP (logical)
     const weight = edge.id.startsWith('bgp-') ? 1 : 2;
     
+    // Dagre does not support self-loop edges and will crash the application
+    if (edge.source === edge.target) return;
+
     const sourceRank = nodeRankMap.get(edge.source) ?? 8;
     const targetRank = nodeRankMap.get(edge.target) ?? 8;
 

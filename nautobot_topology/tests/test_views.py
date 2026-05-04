@@ -42,7 +42,7 @@ class TopologyViewSetListTest(TestCase):
         mock_site.device_count = 5
         mock_site.parent = None
         mock_site.descendants.return_value.values_list.return_value = [mock_site.id]
-        mock_qs.select_related.return_value.annotate.return_value = [mock_site]
+        mock_qs.distinct.return_value.select_related.return_value.annotate.return_value = [mock_site]
         mock_filter.return_value = mock_qs
 
         response = self.client.get("/api/plugins/nautobot_topology/topology/")
@@ -62,7 +62,7 @@ class TopologyViewSetListTest(TestCase):
         mock_site.name = "No Coords Site"
         mock_site.latitude = None
         mock_site.longitude = None
-        mock_qs.select_related.return_value.annotate.return_value = [mock_site]
+        mock_qs.distinct.return_value.select_related.return_value.annotate.return_value = [mock_site]
         mock_filter.return_value = mock_qs
 
         response = self.client.get("/api/plugins/nautobot_topology/topology/")

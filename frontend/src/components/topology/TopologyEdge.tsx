@@ -68,7 +68,7 @@ export function TopologyEdge({
       markerEnd={markerEnd} 
       style={{
         ...style,
-        transition: 'all 0.3s ease-in-out',
+        transition: 'stroke 0.3s ease, stroke-width 0.3s ease, opacity 0.3s ease, filter 0.3s ease',
       }} 
     />
   );

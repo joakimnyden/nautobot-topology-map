@@ -15,6 +15,7 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isDevicesLoading, setIsDevicesLoading] = useState(false);
+  const [cableChoices, setCableChoices] = useState<{value: string, label: string}[]>([]);
 
   // Fetch sites for standalone mode
   useEffect(() => {
@@ -28,6 +29,16 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
         })
         .catch(err => console.error('Failed to fetch filtered sites:', err));
     }
+
+    // Fetch cable choices
+    fetch('/api/plugins/nautobot_topology/topology/cable_choices/')
+      .then(res => res.json())
+      .then(data => {
+        if (data.results) {
+          setCableChoices(data.results);
+        }
+      })
+      .catch(err => console.error('Failed to fetch cable choices:', err));
   }, [isStandalone]);
 
   // Fetch devices when site selection changes
@@ -188,6 +199,7 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
     isDevicesLoading,
     handleDiscover,
     handleDiscoverAll,
-    handleImport
+    handleImport,
+    cableChoices
   };
 };

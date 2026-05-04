@@ -41,9 +41,8 @@ export function useTopologyLayout({ siteId, topoNodes, topoEdges }: UseTopologyL
     // Only apply saved/computed layout once per site change, 
     // but wait until we have layoutInfo (or it's confirmed empty)
     if (!isLayoutApplied) {
-      if (layoutInfo === null) return; // Still waiting for fetch
-
-      console.log(`[Layout] Applying initial layout for ${topoNodes.length} nodes...`);
+      if (layoutInfo === null) return; 
+      
       let finalNodes = topoNodes;
       
       const hasSavedPositions = layoutInfo && Object.keys(layoutInfo).length > 0 && !layoutInfo.nodes;

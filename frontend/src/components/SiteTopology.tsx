@@ -5,6 +5,7 @@ import { ChevronLeft, Share2, Download, Settings, Plus, Minus, RotateCcw, Loader
 import { ROLE_ICON_MAPPING } from '../config/topologyConfig';
 import { ReactFlowProvider } from '@xyflow/react';
 import DeviceFlow from './DeviceFlow';
+import { ErrorBoundary } from './ErrorBoundary';
 
 import { toPng } from 'html-to-image';
 interface SiteTopologyProps {
@@ -151,15 +152,17 @@ export default function SiteTopology({ site, onBack }: SiteTopologyProps) {
           </div>
         ) : (
           <ReactFlowProvider>
-            <DeviceFlow
-              devices={devices}
-              links={links}
-              siteId={site.id}
-              availableVlans={availableVlans}
-              availablePrefixes={availablePrefixes}
-              prometheusEnabled={prometheusEnabled}
-              apRoleName={apRoleName}
-            />
+            <ErrorBoundary>
+              <DeviceFlow
+                devices={devices}
+                links={links}
+                siteId={site.id}
+                availableVlans={availableVlans}
+                availablePrefixes={availablePrefixes}
+                prometheusEnabled={prometheusEnabled}
+                apRoleName={apRoleName}
+              />
+            </ErrorBoundary>
           </ReactFlowProvider>
         )}
       </div>

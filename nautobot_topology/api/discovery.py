@@ -5,7 +5,22 @@ from nautobot.extras.choices import (
 from nautobot.dcim.models import Device
 from netmiko import ConnectHandler
 import re
+import os
+import logging
 from django.db.models import Q
+
+# Logger for Nautobot server visibility
+logger = logging.getLogger("nautobot.plugin.topology_map.discovery")
+
+def debug_log(message):
+    """Log messages to the server console if debug mode is enabled in settings."""
+    try:
+        from django.conf import settings
+        plugin_config = getattr(settings, "PLUGINS_CONFIG", {}).get("nautobot_topology", {})
+        if plugin_config.get("debug", False):
+            print(f"TOPOLOGY-DISCOVERY: {message}")
+    except Exception:
+        pass
 
 
 def get_device_credentials(device):
@@ -192,9 +207,11 @@ def discover_neighbors(device_id):
     neighbors = []
     seen_interfaces = set()
 
+    debug_log(f"--- Starting discovery for {device.name} ({ip_address}) ---")
+    debug_log(f"Device Type: {device_type}")
+
     with ConnectHandler(**connection_params) as net_connect:
         # 1. Try LLDP
-        # Commands to try sequentially until we find a match
         lldp_cmds = [
             "show lldp neighbors detail",
             "show lldp neighbors",
@@ -202,7 +219,6 @@ def discover_neighbors(device_id):
             "show lldp neighbor-information detail",
         ]
 
-        # Juniper and Huawei often have specific commands that work better
         if "juniper" in device_type:
             lldp_cmds = ["show lldp neighbors"]
         elif "huawei" in device_type or "comware" in device_type:
@@ -210,8 +226,11 @@ def discover_neighbors(device_id):
 
         for cmd in lldp_cmds:
             try:
+                debug_log(f"Sending LLDP command: {cmd}")
                 lldp_output = net_connect.send_command(cmd, use_textfsm=True)
-                if isinstance(lldp_output, list) and lldp_output:
+                
+                if isinstance(lldp_output, list):
+                    debug_log(f"LLDP Parsing success: found {len(lldp_output)} entries")
                     for entry in lldp_output:
                         local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
 
@@ -226,26 +245,36 @@ def discover_neighbors(device_id):
                                 }
                             )
                             seen_interfaces.add(local_iface)
-                    # If we got structured data, don't try simpler LLDP commands
-                    break
-            except Exception:
+                    
+                    if lldp_output:
+                        break
+                else:
+                    debug_log(f"LLDP Parsing failed for {cmd}: output is a string (raw text)")
+            except Exception as e:
+                debug_log(f"Error during LLDP {cmd}: {str(e)}")
                 continue
 
-        # 2. Try CDP (mostly for Cisco/Arista)
-        # Only try if we didn't fill everything or if it's a known CDP-supporting vendor
-        cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
-        if "juniper" in device_type or "huawei" in device_type:
+        # 2. Try CDP only if LLDP failed to find any neighbors
+        if neighbors:
+            debug_log("LLDP discovery was successful, skipping CDP.")
             cdp_cmds = []
+        else:
+            debug_log("LLDP discovery returned no neighbors, falling back to CDP.")
+            cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
+            if "juniper" in device_type or "huawei" in device_type:
+                cdp_cmds = []
 
         for cmd in cdp_cmds:
             try:
+                debug_log(f"Sending CDP command: {cmd}")
                 cdp_output = net_connect.send_command(cmd, use_textfsm=True)
-                if isinstance(cdp_output, list) and cdp_output:
+                
+                if isinstance(cdp_output, list):
+                    debug_log(f"CDP Parsing success: found {len(cdp_output)} entries")
                     for entry in cdp_output:
                         local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
 
                         if local_iface and remote_dev and remote_iface:
-                            # Only add if we haven't seen this interface via LLDP
                             if local_iface not in seen_interfaces:
                                 neighbors.append(
                                     {
@@ -256,57 +285,73 @@ def discover_neighbors(device_id):
                                         "protocol": "CDP",
                                     }
                                 )
-                    # If we got results, don't try simpler CDP commands
-                    break
-            except Exception:
+                    
+                    if cdp_output:
+                        break
+                else:
+                    debug_log(f"CDP Parsing failed for {cmd}: output is a string (raw text)")
+            except Exception as e:
+                debug_log(f"Error during CDP {cmd}: {str(e)}")
                 continue
 
+    debug_log(f"Total neighbors found: {len(neighbors)}")
     return standardize_and_match_neighbors(device, neighbors)
 
 
 def _extract_neighbor_data(entry):
     """Helper to extract neighbor data from various TextFSM template formats."""
+    if not isinstance(entry, dict):
+        debug_log(f"    WARNING: entry is not a dict: {type(entry)} - {str(entry)[:100]}")
+        return None, None, None, None
+
+    # Normalize keys to lowercase for robust lookup
+    e = {k.lower(): v for k, v in entry.items()}
+
     # Local interface keys
     local_iface = (
-        entry.get("LOCAL_INTERFACE")
-        or entry.get("LOCAL_PORT")
-        or entry.get("local_interface")
-        or entry.get("local_port")
+        e.get("local_interface")
+        or e.get("local_port")
+        or e.get("interface")
+        or e.get("port")
         or ""
     )
 
     # Remote device keys
     remote_dev = (
-        entry.get("NEIGHBOR_NAME")
-        or entry.get("NEIGHBOR_ID")
-        or entry.get("DESTINATION_HOST")
-        or entry.get("neighbor")
-        or entry.get("NEIGHBOR")
-        or entry.get("CHASSIS_ID")
-        or entry.get("destination_host")
+        e.get("neighbor_name")
+        or e.get("neighbor_id")
+        or e.get("neighbor")
+        or e.get("destination_host")
+        or e.get("chassis_id")
+        or e.get("system_name")
+        or e.get("host_name")
+        or e.get("remote_id")
         or ""
     )
 
     # Remote interface keys
     remote_iface = (
-        entry.get("NEIGHBOR_INTERFACE")
-        or entry.get("REMOTE_PORT")
-        or entry.get("neighbor_interface")
-        or entry.get("remote_port")
-        or entry.get("REMOTE_INTERFACE")
-        or entry.get("NEIGHBOR_PORT_ID")
+        e.get("neighbor_port_id")
+        or e.get("neighbor_interface")
+        or e.get("remote_port")
+        or e.get("remote_interface")
+        or e.get("port_id")
+        or e.get("neighbor_port")
         or ""
     )
 
     # Remote IP keys
     remote_ip = (
-        entry.get("MGMT_ADDRESS")
-        or entry.get("MANAGEMENT_IP")
-        or entry.get("management_ip")
-        or entry.get("ADDRESS")
-        or entry.get("address")
+        e.get("mgmt_address")
+        or e.get("management_ip")
+        or e.get("address")
+        or e.get("ip_address")
         or ""
     )
+
+    if not remote_dev:
+        debug_log(f"    DEBUG: Failed to find remote_dev. Available keys: {list(e.keys())}")
+        debug_log(f"    DEBUG: Raw entry: {entry}")
 
     return local_iface, remote_dev, remote_iface, remote_ip
 
@@ -418,11 +463,18 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         remote_iface_name = neighbor["remote_interface"]
         remote_ip = neighbor.get("remote_ip")
 
+        debug_log(f"Matching neighbor: {local_iface_name} -> {remote_dev_name} ({remote_iface_name})")
+
         # 1. Find local component
         norm_local_name = normalize_interface_name(local_iface_name)
         local_term_obj, local_term_type = local_cmap.get(norm_local_name, (None, None))
         if not local_term_obj:
             local_term_obj, local_term_type = local_cmap.get(local_iface_name.lower(), (None, None))
+        
+        if not local_term_obj:
+            debug_log(f"  FAILED to match local interface: {local_iface_name} (norm: {norm_local_name})")
+        else:
+            debug_log(f"  Matched local interface: {local_term_obj.name}")
 
         # 2. Find remote device
         remote_dev_obj = None
@@ -455,6 +507,11 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
                 remote_dev_obj = possible_devices.first()
                 remote_device_cache[remote_dev_name] = remote_dev_obj
 
+        if not remote_dev_obj:
+            debug_log(f"  FAILED to match remote device: {remote_dev_name}")
+        else:
+            debug_log(f"  Matched remote device: {remote_dev_obj.name}")
+
         # 3. Find remote component
         remote_term_obj = None
         remote_term_type = None
@@ -468,6 +525,11 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
             remote_term_obj, remote_term_type = rcmap.get(norm_remote_name, (None, None))
             if not remote_term_obj:
                 remote_term_obj, remote_term_type = rcmap.get(remote_iface_name.lower(), (None, None))
+
+            if not remote_term_obj:
+                debug_log(f"  FAILED to match remote interface: {remote_iface_name} (norm: {norm_remote_name})")
+            else:
+                debug_log(f"  Matched remote interface: {remote_term_obj.name}")
 
         # Check if cable already exists
         cable_exists = bool(local_term_obj and getattr(local_term_obj, "cable", None))
