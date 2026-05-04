@@ -16,6 +16,8 @@ export const GroupNode = React.memo(({ data }: GroupNodeProps) => {
   const { name, deviceCount, devices, iconStyle, lod } = data;
   const isFancy = iconStyle === 'fancy';
   const [expanded, setExpanded] = useState(false);
+  const zoom = useStore((s: any) => s.transform[2]);
+
   if (lod === 0) {
     return (
       <div 
@@ -33,7 +35,6 @@ export const GroupNode = React.memo(({ data }: GroupNodeProps) => {
       </div>
     );
   }
-  const zoom = useStore((s: any) => s.transform[2]);
 
   return (
     <div className="relative flex flex-col items-center gap-2 group w-[140px]">
