@@ -99,6 +99,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
           setResults={setResults}
           onImport={handleImport}
           importing={importing}
+          cableChoices={cableChoices}
         />
       )}
     </div>

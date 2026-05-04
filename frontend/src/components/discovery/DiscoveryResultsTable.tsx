@@ -10,6 +10,7 @@ interface DiscoveryResultsTableProps {
   setResults: (results: any[]) => void;
   onImport: () => void;
   importing: boolean;
+  cableChoices: {value: string, label: string}[];
 }
 
 export const DiscoveryResultsTable: React.FC<DiscoveryResultsTableProps> = ({
@@ -20,7 +21,8 @@ export const DiscoveryResultsTable: React.FC<DiscoveryResultsTableProps> = ({
   setCableType,
   setResults,
   onImport,
-  importing
+  importing,
+  cableChoices
 }) => {
   const filteredResults = results.filter(r => {
     const search = resultSearch.toLowerCase();
@@ -115,13 +117,18 @@ export const DiscoveryResultsTable: React.FC<DiscoveryResultsTableProps> = ({
                     }}
                     className={`bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-0.5 text-[10px] text-slate-300 outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all ${r.cable_exists ? 'cursor-not-allowed' : 'cursor-pointer hover:border-slate-500'}`}
                   >
-                    <option value="cat6">Cat6</option>
-                    <option value="cat6a">Cat6a</option>
-                    <option value="fiber-lc">Fiber (LC)</option>
-                    <option value="fiber-sc">Fiber (SC)</option>
-                    <option value="dac">DAC (Twinax)</option>
-                    <option value="aoc">AOC</option>
-                    <option value="power">Power</option>
+                    {cableChoices.length > 0 ? (
+                      cableChoices.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="cat6">Cat6</option>
+                        <option value="cat6a">Cat6a</option>
+                        <option value="fiber-lc">Fiber (LC)</option>
+                        <option value="dac">DAC</option>
+                      </>
+                    )}
                   </select>
                 </td>
                 <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -162,13 +169,18 @@ export const DiscoveryResultsTable: React.FC<DiscoveryResultsTableProps> = ({
               onChange={(e) => setCableType(e.target.value)}
               className="bg-slate-800 border-none rounded-lg px-2 py-1 text-[10px] text-slate-200 outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
             >
-              <option value="cat6">Cat6</option>
-              <option value="cat6a">Cat6a</option>
-              <option value="fiber-lc">Fiber (LC)</option>
-              <option value="fiber-sc">Fiber (SC)</option>
-              <option value="dac">DAC (Twinax)</option>
-              <option value="aoc">AOC</option>
-              <option value="power">Power</option>
+              {cableChoices.length > 0 ? (
+                cableChoices.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))
+              ) : (
+                <>
+                  <option value="cat6">Cat6</option>
+                  <option value="cat6a">Cat6a</option>
+                  <option value="fiber-lc">Fiber (LC)</option>
+                  <option value="dac">DAC</option>
+                </>
+              )}
             </select>
           </div>
         </div>

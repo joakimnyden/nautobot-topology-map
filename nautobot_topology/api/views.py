@@ -700,7 +700,7 @@ class TopologyViewSet(ViewSet):
                 cable = Cable(
                     termination_a=term_a,
                     termination_b=term_b,
-                    type=cable_spec.get("type", "cat6a"),
+                    type=cable_spec.get("type", "other"),
                     status=active_status,
                 )
                 cable.validated_save()
@@ -715,3 +715,21 @@ class TopologyViewSet(ViewSet):
                 "errors": errors,
             }
         )
+
+    @action(detail=False, methods=["get"])
+    def cable_choices(self, request):
+        """Return available cable type choices from Nautobot."""
+        try:
+            from nautobot.dcim.choices import CableTypeChoices
+
+            choices = [{"value": c[0], "label": c[1]} for c in CableTypeChoices.CHOICES]
+            return Response({"status": "success", "results": choices})
+        except Exception as e:
+            # Fallback to some defaults if Nautobot choices can't be loaded
+            defaults = [
+                {"value": "cat6", "label": "Cat6"},
+                {"value": "cat6a", "label": "Cat6a"},
+                {"value": "fiber-lc", "label": "Fiber (LC)"},
+                {"value": "dac", "label": "DAC"},
+            ]
+            return Response({"status": "partial", "results": defaults, "error": str(e)})
