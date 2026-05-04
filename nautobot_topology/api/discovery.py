@@ -9,15 +9,13 @@ import os
 import logging
 from django.db.models import Q
 
-# Debug log path
-DEBUG_LOG = "/Users/joakimnyden/Documents/project/nautobot-topology-map/nautobot_topology/discovery_debug.log"
+# Logger for Nautobot server visibility
+logger = logging.getLogger("nautobot.plugin.topology_map.discovery")
 
 def debug_log(msg):
-    try:
-        with open(DEBUG_LOG, "a") as f:
-            f.write(f"{msg}\n")
-    except Exception:
-        pass
+    logger.info(f"TOPOLOGY-DISCOVERY: {msg}")
+    # Also print to stdout for container logs visibility
+    print(f"TOPOLOGY-DISCOVERY: {msg}")
 
 
 def get_device_credentials(device):
