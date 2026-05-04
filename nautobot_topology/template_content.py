@@ -1,6 +1,7 @@
 from django.urls import reverse
 from nautobot.apps.ui import TemplateExtension
 
+
 class SiteTopologyTab(TemplateExtension):
     model = "dcim.location"
 
@@ -18,5 +19,6 @@ class SiteTopologyTab(TemplateExtension):
                 },
             ]
         return []
+
 
 template_extensions = [SiteTopologyTab]

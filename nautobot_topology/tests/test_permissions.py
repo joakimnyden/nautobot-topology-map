@@ -13,7 +13,7 @@ class TopologyPermissionsTest(APITestCase):
 
         # Setup location structure
         self.site_type, _ = LocationType.objects.get_or_create(name="Site")
-        self.active_status = Status.objects.get(name="Active")
+        self.active_status, _ = Status.objects.get_or_create(name="Active")
 
         self.site = Location.objects.create(
             name="Test Site Permissions",
@@ -51,7 +51,9 @@ class TopologyPermissionsTest(APITestCase):
         obj_perm.users.add(self.user)
         obj_perm.object_types.add(ContentType.objects.get_for_model(TopologyLayout))
         obj_perm.save()
-
+        
+        # Re-fetch user to ensure permissions are picked up
+        self.user = User.objects.get(pk=self.user.pk)
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(self.list_url)

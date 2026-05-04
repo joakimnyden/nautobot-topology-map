@@ -12,6 +12,7 @@ class APGroupingTest(TestCase):
     @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"ap_role_name": "My Custom AP Role"}})
     @patch("nautobot_topology.api.views.get_locations_for_site")
     @patch("nautobot_topology.api.views.Location.objects.get")
+    @patch("nautobot_topology.api.views.TopologyViewSet._get_bgp_links", return_value=[])
     @patch("nautobot_topology.api.views.Device.objects.filter")
     @patch("nautobot_topology.api.views.Cable.objects.filter")
     @patch("nautobot.dcim.models.Interface.objects.filter")
@@ -26,6 +27,7 @@ class APGroupingTest(TestCase):
         mock_iface,
         mock_cable,
         mock_device,
+        mock_bgp,
         mock_loc_get,
         mock_get_locs,
     ):
@@ -157,19 +159,19 @@ class APGroupingTest(TestCase):
 
         # Expected nodes:
         # 1. Router 1 (individual, ID: dev1)
-        # 2. AP Group (group-site1-ap, Role: My Custom AP Role, Count: 2)
-        # 3. Other Group (group-site1-other, Role: Other, Count: 2)
+        # 2. AP Group (group-ap-parent-dev1-site1, Role: My Custom AP Role, Count: 2)
+        # 3. Other Group (group-unconnected-site1, Count: 2)
 
         node_ids = [n["id"] for n in nodes]
         self.assertIn("dev1", node_ids)
-        self.assertIn("group-site1-ap", node_ids)
-        self.assertIn("group-site1-other", node_ids)
+        self.assertIn("group-ap-parent-dev1-site1", node_ids)
+        self.assertIn("group-unconnected-site1", node_ids)
 
-        ap_group = next(n for n in nodes if n["id"] == "group-site1-ap")
+        ap_group = next(n for n in nodes if n["id"] == "group-ap-parent-dev1-site1")
         self.assertEqual(ap_group["role"], "My Custom AP Role")
         self.assertEqual(ap_group["deviceCount"], 2)
 
-        other_group = next(n for n in nodes if n["id"] == "group-site1-other")
+        other_group = next(n for n in nodes if n["id"] == "group-unconnected-site1")
         self.assertEqual(other_group["role"], "Other")
         self.assertEqual(other_group["deviceCount"], 2)
 

@@ -4,7 +4,7 @@ Uses Django's TestCase (not Nautobot's APITestCase) so no generate_test_data is 
 """
 
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from nautobot_topology.api.views import get_locations_for_site
@@ -86,6 +86,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         response = self.client.get("/api/plugins/nautobot_topology/topology/123/")
         self.assertEqual(response.status_code, 404)
 
+    @patch("nautobot_topology.api.views.TopologyViewSet._get_bgp_links", return_value=[])
     @patch("nautobot.dcim.models.Interface.objects.filter")
     @patch("nautobot.dcim.models.FrontPort.objects.filter")
     @patch("nautobot_topology.api.views.Location.objects.get")
@@ -104,6 +105,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_get_loc,
         mock_fp,
         mock_iface,
+        mock_bgp,
     ):
         mock_site = MagicMock()
         mock_site.id = "123"
@@ -140,6 +142,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "success")
 
+    @patch("nautobot_topology.api.views.TopologyViewSet._get_bgp_links", return_value=[])
     @patch("nautobot.dcim.models.Interface.objects.filter")
     @patch("nautobot.dcim.models.FrontPort.objects.filter")
     @patch("nautobot_topology.api.views.Location.objects.get")
@@ -158,6 +161,7 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_get_loc,
         mock_fp,
         mock_iface,
+        mock_bgp,
     ):
         """Multiple unconnected devices in the same location are grouped."""
         mock_site = MagicMock()
@@ -280,12 +284,11 @@ class TopologyViewSetMetricsTest(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
+    @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"prometheus_enabled": False}})
     def test_metrics_disabled(self):
         with (
-            patch("nautobot_topology.api.views.getattr") as mock_getattr,
             patch("nautobot_topology.api.views.Location.objects.get") as mock_get,
         ):
-            mock_getattr.return_value.get.return_value = {"prometheus_enabled": False}
             mock_get.return_value = MagicMock()
             response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
         self.assertEqual(response.status_code, 200)

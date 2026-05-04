@@ -70,4 +70,3 @@ if TESTING:
     test_db_name = os.getenv("NAUTOBOT_TEST_DB_NAME")
     if test_db_name:
         DATABASES["default"]["TEST"] = {"NAME": test_db_name}
-
