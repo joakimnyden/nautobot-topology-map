@@ -5,7 +5,19 @@ from nautobot.extras.choices import (
 from nautobot.dcim.models import Device
 from netmiko import ConnectHandler
 import re
+import os
+import logging
 from django.db.models import Q
+
+# Debug log path
+DEBUG_LOG = "/Users/joakimnyden/Documents/project/nautobot-topology-map/nautobot_topology/discovery_debug.log"
+
+def debug_log(msg):
+    try:
+        with open(DEBUG_LOG, "a") as f:
+            f.write(f"{msg}\n")
+    except Exception:
+        pass
 
 
 def get_device_credentials(device):
@@ -192,9 +204,11 @@ def discover_neighbors(device_id):
     neighbors = []
     seen_interfaces = set()
 
+    debug_log(f"--- Starting discovery for {device.name} ({ip_address}) ---")
+    debug_log(f"Device Type: {device_type}")
+
     with ConnectHandler(**connection_params) as net_connect:
         # 1. Try LLDP
-        # Commands to try sequentially until we find a match
         lldp_cmds = [
             "show lldp neighbors detail",
             "show lldp neighbors",
@@ -202,7 +216,6 @@ def discover_neighbors(device_id):
             "show lldp neighbor-information detail",
         ]
 
-        # Juniper and Huawei often have specific commands that work better
         if "juniper" in device_type:
             lldp_cmds = ["show lldp neighbors"]
         elif "huawei" in device_type or "comware" in device_type:
@@ -210,57 +223,72 @@ def discover_neighbors(device_id):
 
         for cmd in lldp_cmds:
             try:
+                debug_log(f"Sending LLDP command: {cmd}")
                 lldp_output = net_connect.send_command(cmd, use_textfsm=True)
-                if isinstance(lldp_output, list) and lldp_output:
-                    for entry in lldp_output:
-                        local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
+                
+                if isinstance(lldp_output, list):
+                    debug_log(f"LLDP Parsing success: found {len(lldp_output)} entries")
+                    if lldp_output:
+                        for entry in lldp_output:
+                            local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
+                            debug_log(f"  Parsed: {local_iface} -> {remote_dev} ({remote_iface})")
 
-                        if local_iface and remote_dev and remote_iface:
-                            neighbors.append(
-                                {
-                                    "local_interface": local_iface,
-                                    "remote_device": strip_domain_safe(remote_dev),
-                                    "remote_interface": remote_iface,
-                                    "remote_ip": remote_ip,
-                                    "protocol": "LLDP",
-                                }
-                            )
-                            seen_interfaces.add(local_iface)
-                    # If we got structured data, don't try simpler LLDP commands
-                    break
-            except Exception:
-                continue
-
-        # 2. Try CDP (mostly for Cisco/Arista)
-        # Only try if we didn't fill everything or if it's a known CDP-supporting vendor
-        cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
-        if "juniper" in device_type or "huawei" in device_type:
-            cdp_cmds = []
-
-        for cmd in cdp_cmds:
-            try:
-                cdp_output = net_connect.send_command(cmd, use_textfsm=True)
-                if isinstance(cdp_output, list) and cdp_output:
-                    for entry in cdp_output:
-                        local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
-
-                        if local_iface and remote_dev and remote_iface:
-                            # Only add if we haven't seen this interface via LLDP
-                            if local_iface not in seen_interfaces:
+                            if local_iface and remote_dev and remote_iface:
                                 neighbors.append(
                                     {
                                         "local_interface": local_iface,
                                         "remote_device": strip_domain_safe(remote_dev),
                                         "remote_interface": remote_iface,
                                         "remote_ip": remote_ip,
-                                        "protocol": "CDP",
+                                        "protocol": "LLDP",
                                     }
                                 )
-                    # If we got results, don't try simpler CDP commands
-                    break
-            except Exception:
+                                seen_interfaces.add(local_iface)
+                        break
+                else:
+                    debug_log(f"LLDP Parsing failed for {cmd}: output is a string (raw text)")
+                    debug_log(f"Raw snippet: {str(lldp_output)[:200]}...")
+            except Exception as e:
+                debug_log(f"Error during LLDP {cmd}: {str(e)}")
                 continue
 
+        # 2. Try CDP
+        cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
+        if "juniper" in device_type or "huawei" in device_type:
+            cdp_cmds = []
+
+        for cmd in cdp_cmds:
+            try:
+                debug_log(f"Sending CDP command: {cmd}")
+                cdp_output = net_connect.send_command(cmd, use_textfsm=True)
+                
+                if isinstance(cdp_output, list):
+                    debug_log(f"CDP Parsing success: found {len(cdp_output)} entries")
+                    if cdp_output:
+                        for entry in cdp_output:
+                            local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
+                            debug_log(f"  Parsed: {local_iface} -> {remote_dev} ({remote_iface})")
+
+                            if local_iface and remote_dev and remote_iface:
+                                if local_iface not in seen_interfaces:
+                                    neighbors.append(
+                                        {
+                                            "local_interface": local_iface,
+                                            "remote_device": strip_domain_safe(remote_dev),
+                                            "remote_interface": remote_iface,
+                                            "remote_ip": remote_ip,
+                                            "protocol": "CDP",
+                                        }
+                                    )
+                        break
+                else:
+                    debug_log(f"CDP Parsing failed for {cmd}: output is a string (raw text)")
+                    debug_log(f"Raw snippet: {str(cdp_output)[:200]}...")
+            except Exception as e:
+                debug_log(f"Error during CDP {cmd}: {str(e)}")
+                continue
+
+    debug_log(f"Total neighbors found: {len(neighbors)}")
     return standardize_and_match_neighbors(device, neighbors)
 
 
