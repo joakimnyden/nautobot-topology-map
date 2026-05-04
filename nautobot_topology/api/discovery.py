@@ -257,10 +257,15 @@ def discover_neighbors(device_id):
                 debug_log(traceback.format_exc())
                 continue
 
-        # 2. Try CDP
-        cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
-        if "juniper" in device_type or "huawei" in device_type:
+        # 2. Try CDP only if LLDP failed to find any neighbors
+        if neighbors:
+            debug_log("LLDP discovery was successful, skipping CDP.")
             cdp_cmds = []
+        else:
+            debug_log("LLDP discovery returned no neighbors, falling back to CDP.")
+            cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
+            if "juniper" in device_type or "huawei" in device_type:
+                cdp_cmds = []
 
         for cmd in cdp_cmds:
             try:
