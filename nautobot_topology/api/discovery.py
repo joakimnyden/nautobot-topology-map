@@ -444,11 +444,18 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         remote_iface_name = neighbor["remote_interface"]
         remote_ip = neighbor.get("remote_ip")
 
+        debug_log(f"Matching neighbor: {local_iface_name} -> {remote_dev_name} ({remote_iface_name})")
+
         # 1. Find local component
         norm_local_name = normalize_interface_name(local_iface_name)
         local_term_obj, local_term_type = local_cmap.get(norm_local_name, (None, None))
         if not local_term_obj:
             local_term_obj, local_term_type = local_cmap.get(local_iface_name.lower(), (None, None))
+        
+        if not local_term_obj:
+            debug_log(f"  FAILED to match local interface: {local_iface_name} (norm: {norm_local_name})")
+        else:
+            debug_log(f"  Matched local interface: {local_term_obj.name}")
 
         # 2. Find remote device
         remote_dev_obj = None
@@ -481,6 +488,11 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
                 remote_dev_obj = possible_devices.first()
                 remote_device_cache[remote_dev_name] = remote_dev_obj
 
+        if not remote_dev_obj:
+            debug_log(f"  FAILED to match remote device: {remote_dev_name}")
+        else:
+            debug_log(f"  Matched remote device: {remote_dev_obj.name}")
+
         # 3. Find remote component
         remote_term_obj = None
         remote_term_type = None
@@ -494,6 +506,11 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
             remote_term_obj, remote_term_type = rcmap.get(norm_remote_name, (None, None))
             if not remote_term_obj:
                 remote_term_obj, remote_term_type = rcmap.get(remote_iface_name.lower(), (None, None))
+
+            if not remote_term_obj:
+                debug_log(f"  FAILED to match remote interface: {remote_iface_name} (norm: {norm_remote_name})")
+            else:
+                debug_log(f"  Matched remote interface: {remote_term_obj.name}")
 
         # Check if cable already exists
         cable_exists = bool(local_term_obj and getattr(local_term_obj, "cable", None))
