@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Activity, ArrowRight, AlertCircle, CheckCircle2, Zap, Database } from 'lucide-react';
+import { Search, Activity, ArrowRight, AlertCircle, CheckCircle2, Zap, Database, Loader2 } from 'lucide-react';
 
 interface DiscoveryResultsTableProps {
   results: any[];
