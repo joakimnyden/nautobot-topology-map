@@ -226,28 +226,35 @@ def discover_neighbors(device_id):
                 
                 if isinstance(lldp_output, list):
                     debug_log(f"LLDP Parsing success: found {len(lldp_output)} entries")
-                    if lldp_output:
-                        for entry in lldp_output:
-                            local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
-                            debug_log(f"  Parsed: {local_iface} -> {remote_dev} ({remote_iface})")
+                    for i, entry in enumerate(lldp_output):
+                        debug_log(f"  Processing LLDP entry {i}: {type(entry)}")
+                        local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
+                        debug_log(f"    Extracted: {local_iface} -> {remote_dev} ({remote_iface})")
 
-                            if local_iface and remote_dev and remote_iface:
-                                neighbors.append(
-                                    {
-                                        "local_interface": local_iface,
-                                        "remote_device": strip_domain_safe(remote_dev),
-                                        "remote_interface": remote_iface,
-                                        "remote_ip": remote_ip,
-                                        "protocol": "LLDP",
-                                    }
-                                )
-                                seen_interfaces.add(local_iface)
+                        if local_iface and remote_dev and remote_iface:
+                            neighbors.append(
+                                {
+                                    "local_interface": local_iface,
+                                    "remote_device": strip_domain_safe(remote_dev),
+                                    "remote_interface": remote_iface,
+                                    "remote_ip": remote_ip,
+                                    "protocol": "LLDP",
+                                }
+                            )
+                            seen_interfaces.add(local_iface)
+                            debug_log(f"    Added to neighbors. Total now: {len(neighbors)}")
+                        else:
+                            debug_log(f"    SKIPPED: missing data (local={bool(local_iface)}, dev={bool(remote_dev)}, iface={bool(remote_iface)})")
+                    
+                    if lldp_output:
                         break
                 else:
                     debug_log(f"LLDP Parsing failed for {cmd}: output is a string (raw text)")
                     debug_log(f"Raw snippet: {str(lldp_output)[:200]}...")
             except Exception as e:
                 debug_log(f"Error during LLDP {cmd}: {str(e)}")
+                import traceback
+                debug_log(traceback.format_exc())
                 continue
 
         # 2. Try CDP
@@ -262,28 +269,37 @@ def discover_neighbors(device_id):
                 
                 if isinstance(cdp_output, list):
                     debug_log(f"CDP Parsing success: found {len(cdp_output)} entries")
-                    if cdp_output:
-                        for entry in cdp_output:
-                            local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
-                            debug_log(f"  Parsed: {local_iface} -> {remote_dev} ({remote_iface})")
+                    for i, entry in enumerate(cdp_output):
+                        debug_log(f"  Processing CDP entry {i}: {type(entry)}")
+                        local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
+                        debug_log(f"    Extracted: {local_iface} -> {remote_dev} ({remote_iface})")
 
-                            if local_iface and remote_dev and remote_iface:
-                                if local_iface not in seen_interfaces:
-                                    neighbors.append(
-                                        {
-                                            "local_interface": local_iface,
-                                            "remote_device": strip_domain_safe(remote_dev),
-                                            "remote_interface": remote_iface,
-                                            "remote_ip": remote_ip,
-                                            "protocol": "CDP",
-                                        }
-                                    )
+                        if local_iface and remote_dev and remote_iface:
+                            if local_iface not in seen_interfaces:
+                                neighbors.append(
+                                    {
+                                        "local_interface": local_iface,
+                                        "remote_device": strip_domain_safe(remote_dev),
+                                        "remote_interface": remote_iface,
+                                        "remote_ip": remote_ip,
+                                        "protocol": "CDP",
+                                    }
+                                )
+                                debug_log(f"    Added to neighbors. Total now: {len(neighbors)}")
+                            else:
+                                debug_log(f"    SKIPPED: interface {local_iface} already seen via LLDP")
+                        else:
+                            debug_log(f"    SKIPPED: missing data (local={bool(local_iface)}, dev={bool(remote_dev)}, iface={bool(remote_iface)})")
+                    
+                    if cdp_output:
                         break
                 else:
                     debug_log(f"CDP Parsing failed for {cmd}: output is a string (raw text)")
                     debug_log(f"Raw snippet: {str(cdp_output)[:200]}...")
             except Exception as e:
                 debug_log(f"Error during CDP {cmd}: {str(e)}")
+                import traceback
+                debug_log(traceback.format_exc())
                 continue
 
     debug_log(f"Total neighbors found: {len(neighbors)}")
