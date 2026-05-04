@@ -50,7 +50,10 @@ Follow these steps strictly for *every* task to ensure consistency and stability
     - **Simulator**: Hybrid simulation mode enabled via `discovery_simulator_enabled` in `nautobot_config.py`.
       - **Frontend**: Adds a "✨ Discovery Simulator" device with hardcoded mock results.
       - **Backend**: The `discover_neighbors` API returns simulated neighbors for *any* device using database lookups of nearby devices, bypassing SSH connectivity.
-    - **Modular Frontend**: The discovery UI is decomposed into atomic components (`DiscoveryHeader`, `DiscoveryControlPanel`, `DiscoveryResultsTable`, `DiscoverySummary`) to separate layout from state logic.
+    - **Parsing Logic**:
+      - Uses `netmiko` with `use_textfsm=True` for structured output.
+      - Robust key mapping in `_extract_neighbor_data` handles inconsistencies across different NTC templates (e.g., `NEIGHBOR_NAME` vs `DESTINATION_HOST`).
+      - **Protocol Merging**: Automatically merges results from LLDP and CDP. If an interface is found via LLDP, it takes precedence; otherwise, CDP results are used as fallback to avoid duplicate entries for the same link.
     - **Matching Logic**:
       - Matches remote devices using:
         1. Exact case-insensitive Name match

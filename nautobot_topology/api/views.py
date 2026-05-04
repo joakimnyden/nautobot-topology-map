@@ -324,7 +324,7 @@ class TopologyViewSet(ViewSet):
         """Build the list of nodes, grouping unconnected devices or leaf APs where applicable."""
         nodes = []
         ap_role_name = plugin_config.get("ap_role_name", "Access Points")
-        
+
         # 1. Identify APs and their connections
         ap_ids = set()
         for device in devices:
@@ -338,23 +338,25 @@ class TopologyViewSet(ViewSet):
             # We only care about simple links for neighbor mapping
             if link.get("type") in ["physical", "logical", "bgp"]:
                 s, t = link["source"], link["target"]
-                if s not in device_neighbors: device_neighbors[s] = []
-                if t not in device_neighbors: device_neighbors[t] = []
+                if s not in device_neighbors:
+                    device_neighbors[s] = []
+                if t not in device_neighbors:
+                    device_neighbors[t] = []
                 device_neighbors[s].append(t)
                 device_neighbors[t].append(s)
 
         # 2. Categorize devices: regular node, group member (AP), or unconnected group member
-        groups = {} # key -> list of devices
+        groups = {}  # key -> list of devices
         links_to_remove = set()
         links_to_add = []
-        
+
         processed_dev_ids = set()
 
         for device in devices:
             dev_id = str(device.id)
             is_ap = dev_id in ap_ids
             neighbors = device_neighbors.get(dev_id, [])
-            
+
             # Logic for grouping APs by parent switch
             if is_ap and len(neighbors) == 1:
                 parent_id = neighbors[0]
@@ -364,8 +366,8 @@ class TopologyViewSet(ViewSet):
                 groups[group_key]["devices"].append(device)
                 processed_dev_ids.add(dev_id)
                 # Mark link for removal (we'll replace it with a group link)
-                links_to_remove.add(dev_id) 
-            
+                links_to_remove.add(dev_id)
+
             # Logic for unconnected devices (existing behavior)
             elif dev_id not in connected_device_ids:
                 group_key = f"unconnected-{device.location_id}"
@@ -373,7 +375,7 @@ class TopologyViewSet(ViewSet):
                     groups[group_key] = {"devices": [], "parent_id": None, "type": "other"}
                 groups[group_key]["devices"].append(device)
                 processed_dev_ids.add(dev_id)
-            
+
             else:
                 # Regular connected device (not a leaf AP)
                 nodes.append(self._format_device_node(site, device))
@@ -383,21 +385,23 @@ class TopologyViewSet(ViewSet):
             group_devices = group_info["devices"]
             parent_id = group_info["parent_id"]
             is_ap_group = group_info["type"] == "ap"
-            
+
             if len(group_devices) > 1:
                 # Create the group node
                 group_id = f"group-{group_key}"
                 nodes.append(self._format_group_node(site, group_devices, is_ap_group, ap_role_name, group_id))
-                
+
                 # If it has a parent, link the group node to the parent
                 if parent_id:
-                    links_to_add.append({
-                        "id": f"link-to-{group_id}",
-                        "source": parent_id,
-                        "target": group_id,
-                        "type": "physical",
-                        "label": f"x{len(group_devices)} APs"
-                    })
+                    links_to_add.append(
+                        {
+                            "id": f"link-to-{group_id}",
+                            "source": parent_id,
+                            "target": group_id,
+                            "type": "physical",
+                            "label": f"x{len(group_devices)} APs",
+                        }
+                    )
             else:
                 # Only one device in group, show it as a regular node
                 nodes.append(self._format_device_node(site, group_devices[0]))
@@ -412,10 +416,10 @@ class TopologyViewSet(ViewSet):
         while i >= 0:
             link = links_map[i]
             s, t = link.get("source"), link.get("target")
-            if (s in links_to_remove or t in links_to_remove):
+            if s in links_to_remove or t in links_to_remove:
                 links_map.pop(i)
             i -= 1
-            
+
         links_map.extend(links_to_add)
 
         return nodes
@@ -451,7 +455,9 @@ class TopologyViewSet(ViewSet):
 
         inner_devices = []
         for d in devices:
-            ip_str = str(d.primary_ip4.address.ip if d.primary_ip4 else (d.primary_ip6.address.ip if d.primary_ip6 else ""))
+            ip_str = str(
+                d.primary_ip4.address.ip if d.primary_ip4 else (d.primary_ip6.address.ip if d.primary_ip6 else "")
+            )
             inner_devices.append(
                 {
                     "id": str(d.id),
@@ -480,16 +486,27 @@ class TopologyViewSet(ViewSet):
 
     def _get_site_vlans(self, locations):
         """Aggregate all VLANs in the site hierarchy."""
-        return sorted(list(set(
-            f"{vid} - {name}" for vid, name in VLAN.objects.filter(location__in=locations).values_list("vid", "name")
-        )))
+        return sorted(
+            list(
+                set(
+                    f"{vid} - {name}"
+                    for vid, name in VLAN.objects.filter(location__in=locations).values_list("vid", "name")
+                )
+            )
+        )
 
     def _get_site_prefixes(self, locations):
         """Aggregate all Prefixes in the site hierarchy."""
-        return sorted(list(set(
-            f"{net}/{len}" for net, len in Prefix.objects.filter(location__in=locations).values_list("network", "prefix_length")
-        )))
-
+        return sorted(
+            list(
+                set(
+                    f"{net}/{len}"
+                    for net, len in Prefix.objects.filter(location__in=locations).values_list(
+                        "network", "prefix_length"
+                    )
+                )
+            )
+        )
 
     @action(detail=True, methods=["get"])
     def metrics(self, request, pk=None):
@@ -531,8 +548,18 @@ class TopologyViewSet(ViewSet):
                 tx_rate = random.uniform(10_000, 800_000_000)
                 rx_rate = random.uniform(10_000, 800_000_000)
             else:
-                tx_rate = self._query_prometheus(prometheus_url, query_tx_tpl.format(device=term_a.device.name, interface=term_a.name)) or 0.0
-                rx_rate = self._query_prometheus(prometheus_url, query_rx_tpl.format(device=term_b.device.name, interface=term_b.name)) or 0.0
+                tx_rate = (
+                    self._query_prometheus(
+                        prometheus_url, query_tx_tpl.format(device=term_a.device.name, interface=term_a.name)
+                    )
+                    or 0.0
+                )
+                rx_rate = (
+                    self._query_prometheus(
+                        prometheus_url, query_rx_tpl.format(device=term_b.device.name, interface=term_b.name)
+                    )
+                    or 0.0
+                )
 
             utilization = min(100.0, ((tx_rate + rx_rate) / capacity_bps) * 100.0)
             metrics[str(cable.id)] = {"tx": tx_rate, "rx": rx_rate, "utilization": utilization}
@@ -550,7 +577,6 @@ class TopologyViewSet(ViewSet):
         except Exception:
             pass
         return None
-
 
     @action(detail=True, methods=["get", "post"])
     def layout(self, request, pk=None):

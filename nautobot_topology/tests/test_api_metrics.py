@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
-from rest_framework.test import APIRequestFactory
+from django.test import TestCase, override_settings
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIRequestFactory, force_authenticate
 from nautobot_topology.api.views import TopologyViewSet
 
 
@@ -8,14 +9,14 @@ class TopologyMetricsTest(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = TopologyViewSet.as_view({"get": "metrics"})
+        User = get_user_model()
+        self.user = User.objects.create(username="testuser", is_superuser=True)
 
+    @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"prometheus_enabled": False}})
     @patch("nautobot_topology.api.views.cache.set")
-    @patch("nautobot_topology.api.views.getattr")
     @patch("nautobot_topology.api.views.Location.objects.get")
-    def test_metrics_disabled(self, mock_get_loc, mock_getattr, mock_cache_set):
-        # Mock plugin config to disable prometheus
-        mock_getattr.return_value.get.return_value = {"prometheus_enabled": False}
-
+    def test_metrics_disabled(self, mock_get_loc, mock_cache_set):
+        mock_get_loc.return_value = MagicMock()
         request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
         response = self.view(request, pk="123")
 
@@ -33,7 +34,14 @@ class TopologyMetricsTest(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["status"], "error")
 
-    @patch("nautobot_topology.api.views.getattr")
+    @override_settings(
+        PLUGINS_CONFIG={
+            "nautobot_topology": {
+                "prometheus_enabled": True,
+                "prometheus_url": "mock",
+            }
+        }
+    )
     @patch("nautobot_topology.api.views.Location.objects.get")
     @patch("nautobot_topology.api.views.get_locations_for_site")
     @patch("nautobot_topology.api.views.Device.objects.filter")
@@ -44,14 +52,7 @@ class TopologyMetricsTest(TestCase):
         mock_device_filter,
         mock_get_locs,
         mock_get_loc,
-        mock_getattr,
     ):
-        # Mock plugin config to enable prometheus with mock data
-        mock_getattr.return_value.get.return_value = {
-            "prometheus_enabled": True,
-            "prometheus_url": "mock",
-        }
-
         mock_site = MagicMock()
         mock_get_loc.return_value = mock_site
         mock_get_locs.return_value = [mock_site]
@@ -78,7 +79,14 @@ class TopologyMetricsTest(TestCase):
         self.assertIn("rx", response.data["data"]["metrics"]["cable1"])
         self.assertIn("utilization", response.data["data"]["metrics"]["cable1"])
 
-    @patch("nautobot_topology.api.views.getattr")
+    @override_settings(
+        PLUGINS_CONFIG={
+            "nautobot_topology": {
+                "prometheus_enabled": True,
+                "prometheus_url": "mock",
+            }
+        }
+    )
     @patch("nautobot_topology.api.views.Location.objects.get")
     @patch("nautobot_topology.api.views.get_locations_for_site")
     @patch("nautobot_topology.api.views.Device.objects.filter")
@@ -89,12 +97,7 @@ class TopologyMetricsTest(TestCase):
         mock_device_filter,
         mock_get_locs,
         mock_get_loc,
-        mock_getattr,
     ):
-        mock_getattr.return_value.get.return_value = {
-            "prometheus_enabled": True,
-            "prometheus_url": "mock",
-        }
         mock_site = MagicMock()
         mock_get_loc.return_value = mock_site
         mock_get_locs.return_value = [mock_site]
@@ -118,7 +121,16 @@ class TopologyMetricsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["metrics"], {})
 
-    @patch("nautobot_topology.api.views.getattr")
+    @override_settings(
+        PLUGINS_CONFIG={
+            "nautobot_topology": {
+                "prometheus_enabled": True,
+                "prometheus_url": "http://prom:9090",
+                "prometheus_query_tx": "rate(tx[{device},{interface}])",
+                "prometheus_query_rx": "rate(rx[{device},{interface}])",
+            }
+        }
+    )
     @patch("nautobot_topology.api.views.Location.objects.get")
     @patch("requests.get")
     @patch("nautobot_topology.api.views.get_locations_for_site")
@@ -131,16 +143,7 @@ class TopologyMetricsTest(TestCase):
         mock_get_locs,
         mock_requests_get,
         mock_get_loc,
-        mock_getattr,
     ):
-        # Mock plugin config to enable prometheus with real URL
-        mock_getattr.return_value.get.return_value = {
-            "prometheus_enabled": True,
-            "prometheus_url": "http://prom:9090",
-            "prometheus_query_tx": "rate(tx[{device},{interface}])",
-            "prometheus_query_rx": "rate(rx[{device},{interface}])",
-        }
-
         mock_site = MagicMock()
         mock_get_loc.return_value = mock_site
         mock_get_locs.return_value = [mock_site]
@@ -167,13 +170,23 @@ class TopologyMetricsTest(TestCase):
         mock_requests_get.return_value = mock_resp
 
         request = self.factory.get("/api/plugins/nautobot_topology/topology/123/metrics/")
+        force_authenticate(request, user=self.user)
         response = self.view(request, pk="123")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_requests_get.call_count, 2)  # TX and RX queries
         self.assertEqual(response.data["data"]["metrics"]["cable1"]["tx"], 1234.56)
 
-    @patch("nautobot_topology.api.views.getattr")
+    @override_settings(
+        PLUGINS_CONFIG={
+            "nautobot_topology": {
+                "prometheus_enabled": True,
+                "prometheus_url": "http://prom:9090",
+                "prometheus_query_tx": "q",
+                "prometheus_query_rx": "q",
+            }
+        }
+    )
     @patch("nautobot_topology.api.views.Location.objects.get")
     @patch("requests.get")
     @patch("nautobot_topology.api.views.get_locations_for_site")
@@ -186,14 +199,7 @@ class TopologyMetricsTest(TestCase):
         mock_get_locs,
         mock_requests_get,
         mock_get_loc,
-        mock_getattr,
     ):
-        mock_getattr.return_value.get.return_value = {
-            "prometheus_enabled": True,
-            "prometheus_url": "http://prom:9090",
-            "prometheus_query_tx": "q",
-            "prometheus_query_rx": "q",
-        }
         mock_get_loc.return_value = MagicMock()
         mock_get_locs.return_value = []
 

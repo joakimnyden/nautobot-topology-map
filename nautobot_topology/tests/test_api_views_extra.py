@@ -25,6 +25,7 @@ class TopologyViewSetExtraTest(TestCase):
     @patch("nautobot.dcim.models.FrontPort.objects.filter")
     @patch("nautobot_topology.api.views.cache.set")
     @patch("nautobot_topology.api.views.cache.get", return_value=None)
+    @patch("nautobot_topology.api.views.TopologyViewSet._get_bgp_links", return_value=[])
     @patch("nautobot_topology.api.views.Location.objects.get")
     @patch("nautobot_topology.api.views.Location.objects.filter")
     @patch("nautobot_topology.api.views.Device.objects.filter")
@@ -39,6 +40,7 @@ class TopologyViewSetExtraTest(TestCase):
         mock_device_filter,
         mock_loc_filter,
         mock_get_loc,
+        mock_bgp,
         mock_cache_get,
         mock_cache_set,
         mock_fp_filter,
@@ -80,6 +82,7 @@ class TopologyViewSetExtraTest(TestCase):
         dev2.status.name = "Active"
         dev2.role.name = "Access Point"
         dev2.location_id = "loc1"
+        dev2.location = MagicMock()
         dev2.location.name = "Loc 1"
         dev2.interfaces.all.return_value = []
         dev2.primary_ip4 = None
@@ -131,7 +134,7 @@ class TopologyViewSetExtraTest(TestCase):
         site1.latitude = 10.0
         site1.longitude = 10.0
         site1.parent = None
-        site1.device_count = 0
+        site1.device_count = 1
 
         site2 = MagicMock()
         site2.id = "2"

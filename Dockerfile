@@ -122,9 +122,8 @@ COPY --from=builder /source/scripts /opt/nautobot/scripts
 # Install the plugin and its dependencies including extras
 RUN uv pip install --system /tmp/dist/*.whl pytest pytest-django pytest-cov coverage
 
-RUN nautobot-server collectstatic --no-input
-
 USER nautobot
+RUN nautobot-server collectstatic --no-input
 
 # Default command
 CMD ["nautobot-server", "runserver", "0.0.0.0:8080", "--insecure"]

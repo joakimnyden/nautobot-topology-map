@@ -13,7 +13,7 @@ class TopologyLayoutAPITest(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         # Site is now a Location with location_type Site
-        self.active_status = Status.objects.get(name="Active")
+        self.active_status, _ = Status.objects.get_or_create(name="Active")
         self.site_type, _ = LocationType.objects.get_or_create(name="Site")
         self.site = Location.objects.create(name="Test Site", location_type=self.site_type, status=self.active_status)
         self.layout_url = reverse(

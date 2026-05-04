@@ -63,6 +63,18 @@ def guess_netmiko_device_type(device):
         return "arista_eos"
     if "juniper" in network_driver or "junos" in network_driver:
         return "juniper_junos"
+    if "huawei" in network_driver:
+        return "huawei_vrp"
+    if "hp_comware" in network_driver or "comware" in network_driver:
+        return "hp_comware"
+    if "hp_procurve" in network_driver or "procurve" in network_driver:
+        return "hp_procurve"
+    if "extreme_exos" in network_driver or "exos" in network_driver:
+        return "extreme_exos"
+    if "nokia_sros" in network_driver or "sros" in network_driver:
+        return "nokia_sros"
+    if "vyos" in network_driver:
+        return "vyos"
 
     # Check platform name/slug
     if "ios-xr" in platform_name or "iosxr" in platform_name or "xr" in platform_slug:
@@ -75,6 +87,16 @@ def guess_netmiko_device_type(device):
         return "arista_eos"
     if "junos" in platform_name or "juniper" in platform_name:
         return "juniper_junos"
+    if "huawei" in platform_name or "vrp" in platform_slug:
+        return "huawei_vrp"
+    if "comware" in platform_name:
+        return "hp_comware"
+    if "procurve" in platform_name:
+        return "hp_procurve"
+    if "exos" in platform_name:
+        return "extreme_exos"
+    if "nokia" in platform_name or "sros" in platform_slug:
+        return "nokia_sros"
 
     return "cisco_ios"  # Default fallback
 
@@ -168,61 +190,30 @@ def discover_neighbors(device_id):
     }
 
     neighbors = []
+    seen_interfaces = set()
 
     with ConnectHandler(**connection_params) as net_connect:
-        try:
-            # Try LLDP first
-            lldp_output = net_connect.send_command("show lldp neighbors detail", use_textfsm=True)
-            if isinstance(lldp_output, list) and lldp_output:
-                for entry in lldp_output:
-                    # Depending on textfsm template, keys might vary. Standardize them.
-                    # NTC templates usually return LOCAL_INTERFACE, NEIGHBOR, NEIGHBOR_INTERFACE
-                    local_iface = entry.get("LOCAL_INTERFACE", entry.get("local_interface", ""))
-                    remote_dev = entry.get(
-                        "DESTINATION_HOST",
-                        entry.get("neighbor", entry.get("NEIGHBOR", "")),
-                    )
-                    remote_iface = entry.get(
-                        "REMOTE_PORT",
-                        entry.get("neighbor_interface", entry.get("NEIGHBOR_INTERFACE", "")),
-                    )
-                    remote_ip = entry.get(
-                        "MANAGEMENT_IP",
-                        entry.get(
-                            "management_ip",
-                            entry.get("ADDRESS", entry.get("address", "")),
-                        ),
-                    )
+        # 1. Try LLDP
+        # Commands to try sequentially until we find a match
+        lldp_cmds = [
+            "show lldp neighbors detail",
+            "show lldp neighbors",
+            "display lldp neighbor-information",
+            "show lldp neighbor-information detail",
+        ]
 
-                    if local_iface and remote_dev and remote_iface:
-                        neighbors.append(
-                            {
-                                "local_interface": local_iface,
-                                "remote_device": strip_domain_safe(remote_dev),
-                                "remote_interface": remote_iface,
-                                "remote_ip": remote_ip,
-                                "protocol": "LLDP",
-                            }
-                        )
-        except Exception:
-            pass  # Try CDP if LLDP fails or isn't structured
+        # Juniper and Huawei often have specific commands that work better
+        if "juniper" in device_type:
+            lldp_cmds = ["show lldp neighbors"]
+        elif "huawei" in device_type or "comware" in device_type:
+            lldp_cmds = ["display lldp neighbor-information", "display lldp neighbor"]
 
-        if not neighbors:
+        for cmd in lldp_cmds:
             try:
-                # Try CDP if LLDP was empty
-                cdp_output = net_connect.send_command("show cdp neighbors detail", use_textfsm=True)
-                if isinstance(cdp_output, list) and cdp_output:
-                    for entry in cdp_output:
-                        local_iface = entry.get("LOCAL_PORT", entry.get("local_port", ""))
-                        remote_dev = entry.get("DESTINATION_HOST", entry.get("destination_host", ""))
-                        remote_iface = entry.get("REMOTE_PORT", entry.get("remote_port", ""))
-                        remote_ip = entry.get(
-                            "MANAGEMENT_IP",
-                            entry.get(
-                                "management_ip",
-                                entry.get("ADDRESS", entry.get("address", "")),
-                            ),
-                        )
+                lldp_output = net_connect.send_command(cmd, use_textfsm=True)
+                if isinstance(lldp_output, list) and lldp_output:
+                    for entry in lldp_output:
+                        local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
 
                         if local_iface and remote_dev and remote_iface:
                             neighbors.append(
@@ -231,13 +222,93 @@ def discover_neighbors(device_id):
                                     "remote_device": strip_domain_safe(remote_dev),
                                     "remote_interface": remote_iface,
                                     "remote_ip": remote_ip,
-                                    "protocol": "CDP",
+                                    "protocol": "LLDP",
                                 }
                             )
+                            seen_interfaces.add(local_iface)
+                    # If we got structured data, don't try simpler LLDP commands
+                    break
             except Exception:
-                pass
+                continue
+
+        # 2. Try CDP (mostly for Cisco/Arista)
+        # Only try if we didn't fill everything or if it's a known CDP-supporting vendor
+        cdp_cmds = ["show cdp neighbors detail", "show cdp neighbors"]
+        if "juniper" in device_type or "huawei" in device_type:
+            cdp_cmds = []
+
+        for cmd in cdp_cmds:
+            try:
+                cdp_output = net_connect.send_command(cmd, use_textfsm=True)
+                if isinstance(cdp_output, list) and cdp_output:
+                    for entry in cdp_output:
+                        local_iface, remote_dev, remote_iface, remote_ip = _extract_neighbor_data(entry)
+
+                        if local_iface and remote_dev and remote_iface:
+                            # Only add if we haven't seen this interface via LLDP
+                            if local_iface not in seen_interfaces:
+                                neighbors.append(
+                                    {
+                                        "local_interface": local_iface,
+                                        "remote_device": strip_domain_safe(remote_dev),
+                                        "remote_interface": remote_iface,
+                                        "remote_ip": remote_ip,
+                                        "protocol": "CDP",
+                                    }
+                                )
+                    # If we got results, don't try simpler CDP commands
+                    break
+            except Exception:
+                continue
 
     return standardize_and_match_neighbors(device, neighbors)
+
+
+def _extract_neighbor_data(entry):
+    """Helper to extract neighbor data from various TextFSM template formats."""
+    # Local interface keys
+    local_iface = (
+        entry.get("LOCAL_INTERFACE")
+        or entry.get("LOCAL_PORT")
+        or entry.get("local_interface")
+        or entry.get("local_port")
+        or ""
+    )
+
+    # Remote device keys
+    remote_dev = (
+        entry.get("NEIGHBOR_NAME")
+        or entry.get("NEIGHBOR_ID")
+        or entry.get("DESTINATION_HOST")
+        or entry.get("neighbor")
+        or entry.get("NEIGHBOR")
+        or entry.get("CHASSIS_ID")
+        or entry.get("destination_host")
+        or ""
+    )
+
+    # Remote interface keys
+    remote_iface = (
+        entry.get("NEIGHBOR_INTERFACE")
+        or entry.get("REMOTE_PORT")
+        or entry.get("neighbor_interface")
+        or entry.get("remote_port")
+        or entry.get("REMOTE_INTERFACE")
+        or entry.get("NEIGHBOR_PORT_ID")
+        or ""
+    )
+
+    # Remote IP keys
+    remote_ip = (
+        entry.get("MGMT_ADDRESS")
+        or entry.get("MANAGEMENT_IP")
+        or entry.get("management_ip")
+        or entry.get("ADDRESS")
+        or entry.get("address")
+        or ""
+    )
+
+    return local_iface, remote_dev, remote_iface, remote_ip
 
 
 def simulate_neighbors(device):
@@ -402,8 +473,16 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         cable_exists = bool(local_term_obj and getattr(local_term_obj, "cable", None))
 
         # Check LAG membership
-        local_lag_name = local_term_obj.lag.name if local_term_type == "interface" and local_term_obj.lag else None
-        remote_lag_name = remote_term_obj.lag.name if remote_term_type == "interface" and remote_term_obj.lag else None
+        local_lag_name = (
+            local_term_obj.lag.name
+            if local_term_obj and local_term_type == "interface" and local_term_obj.lag
+            else None
+        )
+        remote_lag_name = (
+            remote_term_obj.lag.name
+            if remote_term_obj and remote_term_type == "interface" and remote_term_obj.lag
+            else None
+        )
 
         results.append(
             {
@@ -425,4 +504,3 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         )
 
     return results
-

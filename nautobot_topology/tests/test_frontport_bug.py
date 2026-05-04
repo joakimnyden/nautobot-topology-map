@@ -10,6 +10,7 @@ class FrontPortBugTest(TestCase):
 
     @patch("nautobot.dcim.models.Interface.objects.filter")
     @patch("nautobot.dcim.models.FrontPort.objects.filter")
+    @patch("nautobot_topology.api.views.TopologyViewSet._get_bgp_links", return_value=[])
     @patch("nautobot_topology.api.views.Location.objects.get")
     @patch("nautobot_topology.api.views.get_locations_for_site")
     @patch("nautobot_topology.api.views.Device.objects.filter")
@@ -24,6 +25,7 @@ class FrontPortBugTest(TestCase):
         mock_device_filter,
         mock_get_locs,
         mock_get_loc,
+        mock_bgp,
         mock_fp_filter,
         mock_iface_filter,
     ):
