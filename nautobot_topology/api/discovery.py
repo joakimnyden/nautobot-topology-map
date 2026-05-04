@@ -355,6 +355,10 @@ def _extract_neighbor_data(entry):
         or ""
     )
 
+    if not remote_dev:
+        debug_log(f"    DEBUG: Failed to find remote_dev. Entry keys: {list(entry.keys())}")
+        debug_log(f"    DEBUG: Raw entry values for common keys: NEIGHBOR_NAME={entry.get('NEIGHBOR_NAME')}, NEIGHBOR_ID={entry.get('NEIGHBOR_ID')}, CHASSIS_ID={entry.get('CHASSIS_ID')}")
+
     return local_iface, remote_dev, remote_iface, remote_ip
 
 
