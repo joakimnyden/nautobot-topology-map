@@ -117,7 +117,7 @@ export const DiscoveryResultsTable: React.FC<DiscoveryResultsTableProps> = ({
                     }}
                     className={`bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-0.5 text-[10px] text-slate-300 outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all ${r.cable_exists ? 'cursor-not-allowed' : 'cursor-pointer hover:border-slate-500'}`}
                   >
-                    {cableChoices.length > 0 ? (
+                    {cableChoices && cableChoices.length > 0 ? (
                       cableChoices.map(c => (
                         <option key={c.value} value={c.value}>{c.label}</option>
                       ))
@@ -169,7 +169,7 @@ export const DiscoveryResultsTable: React.FC<DiscoveryResultsTableProps> = ({
               onChange={(e) => setCableType(e.target.value)}
               className="bg-slate-800 border-none rounded-lg px-2 py-1 text-[10px] text-slate-200 outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
             >
-              {cableChoices.length > 0 ? (
+              {cableChoices && cableChoices.length > 0 ? (
                 cableChoices.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))
