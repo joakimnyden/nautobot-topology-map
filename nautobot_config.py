@@ -56,7 +56,7 @@ PLUGINS_CONFIG = {
 # Security settings
 SECRET_KEY = os.environ.get("NAUTOBOT_SECRET_KEY", "nautobot-secret-key-change-me")
 ALLOWED_HOSTS = os.environ.get("NAUTOBOT_ALLOWED_HOSTS", "*").split(",")
-DEBUG = os.environ.get("NAUTOBOT_DEBUG", "True") == "True"
+DEBUG = is_truthy(os.environ.get("NAUTOBOT_DEBUG", "False" if TESTING else "True"))
 
 # Static files
 if TESTING:
