@@ -13,7 +13,7 @@ from nautobot.core.settings_funcs import is_truthy, parse_redis_connection
 
 DEBUG = is_truthy(os.getenv("NAUTOBOT_DEBUG", False))
 
-TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
+TESTING = "test" in sys.argv
 INSTALLATION_METRICS_ENABLED = False
 SILK_ENABLED = False
 

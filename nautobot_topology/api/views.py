@@ -616,7 +616,7 @@ class TopologyViewSet(ViewSet):
             results = discover_neighbors(device.id)
             return Response({"status": "success", "data": results})
         except Exception as e:
-            return Response({"status": "error", "message": str(e)}, status=500)
+            return Response({"status": "error", "message": str(e)}, status=400)
 
     @action(detail=True, methods=["get"])
     def devices(self, request, pk=None):
