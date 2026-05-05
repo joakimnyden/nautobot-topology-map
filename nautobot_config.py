@@ -59,10 +59,12 @@ ALLOWED_HOSTS = os.environ.get("NAUTOBOT_ALLOWED_HOSTS", "*").split(",")
 DEBUG = os.environ.get("NAUTOBOT_DEBUG", "True") == "True"
 
 # Static files
-STATIC_ROOT = os.environ.get("NAUTOBOT_STATIC_ROOT", "/opt/nautobot/static")
 if TESTING:
     STATIC_ROOT = "/tmp/static"
-MEDIA_ROOT = "/opt/nautobot/media"
+    MEDIA_ROOT = "/tmp/media"
+else:
+    STATIC_ROOT = os.environ.get("NAUTOBOT_STATIC_ROOT", "/opt/nautobot/static")
+    MEDIA_ROOT = "/opt/nautobot/media"
 
 # Generate mocked data for tests
 TEST_USE_FACTORIES = False
