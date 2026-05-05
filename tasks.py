@@ -57,7 +57,10 @@ def test(context, module=None, coverage=False, keepdb=True):
 
     if coverage:
         print("Running with coverage...")
-        cmd = f"docker compose exec -T nautobot coverage run --source=nautobot_topology -m nautobot.core.cli test {test_target} --noinput {keepdb_flag}"
+        cmd = (
+            f"docker compose exec -T nautobot coverage run --source=nautobot_topology "
+            f"-m nautobot.core.cli test {test_target} --noinput {keepdb_flag}"
+        )
         context.run("docker compose exec -T nautobot coverage erase", pty=False, in_stream=False)
     else:
         cmd = f"docker compose exec -T nautobot nautobot-server test {test_target} --noinput {keepdb_flag}"
