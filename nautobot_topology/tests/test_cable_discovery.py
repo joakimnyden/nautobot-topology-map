@@ -93,7 +93,7 @@ class DiscoverCablesEndpointTest(TestCase):
         mock_discover.side_effect = ConnectionError("SSH failed")
 
         response = self.client.get("/api/plugins/nautobot_topology/topology/abc/discover_cables/")
-        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["status"], "error")
         self.assertIn("SSH failed", response.data["message"])
 

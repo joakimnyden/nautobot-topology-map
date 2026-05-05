@@ -52,7 +52,7 @@ class TopologyViewSetExtraTest(TestCase):
         mock_site.name = "Site 1"
         mock_site.descendants.return_value.values_list.return_value = [
             "123e4567-e89b-12d3-a456-426614174000",
-            "123e4567-e89b-12d3-a456-426614174004"
+            "123e4567-e89b-12d3-a456-426614174004",
         ]
         mock_get_loc.return_value = mock_site
 

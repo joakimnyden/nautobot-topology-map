@@ -482,7 +482,9 @@ class TopologyViewSet(ViewSet):
             "devices": inner_devices,
             "status": "active",
             "vendor": "Nautobot",
-            "description": f"Collection of {len(devices)} unconnected {'AP' if is_ap_group else 'device'}s in {loc_obj.name}",
+            "description": (
+                f"Collection of {len(devices)} unconnected " f"{'AP' if is_ap_group else 'device'}s in {loc_obj.name}"
+            ),
         }
 
     def _get_site_vlans(self, locations):
@@ -614,7 +616,7 @@ class TopologyViewSet(ViewSet):
             results = discover_neighbors(device.id)
             return Response({"status": "success", "data": results})
         except Exception as e:
-            return Response({"status": "error", "message": str(e)}, status=500)
+            return Response({"status": "error", "message": str(e)}, status=400)
 
     @action(detail=True, methods=["get"])
     def devices(self, request, pk=None):
@@ -666,15 +668,56 @@ class TopologyViewSet(ViewSet):
         except Status.DoesNotExist:
             active_status = Status.objects.filter(content_types__model="cable").first()
 
+        try:
+            iface_active_status = Status.objects.get(name="Active")
+        except Status.DoesNotExist:
+            iface_active_status = Status.objects.filter(content_types__model="interface").first()
+
         for cable_spec in cables_data:
             term_a_id = cable_spec.get("local_interface_id")
             term_b_id = cable_spec.get("remote_interface_id")
-
-            if not term_a_id or not term_b_id:
-                errors.append(f"Missing interface ID for {cable_spec}")
-                continue
+            create_missing = cable_spec.get("create_if_missing", False)
 
             try:
+                # 1. Create local interface if missing and requested
+                if not term_a_id and create_missing:
+                    local_dev_id = cable_spec.get("local_device_id")
+                    iface_name = cable_spec.get("local_interface")
+                    iface_type = cable_spec.get("local_type", "other")
+                    if local_dev_id and iface_name:
+                        try:
+                            dev = Device.objects.get(id=local_dev_id)
+                            iface = Interface.objects.create(
+                                device=dev, name=iface_name, type=iface_type, status=iface_active_status
+                            )
+                            term_a_id = str(iface.id)
+                        except Exception as e:
+                            errors.append(f"Failed to create local interface {iface_name}: {str(e)}")
+                            continue
+
+                # 2. Create remote interface if missing and requested
+                if not term_b_id and create_missing:
+                    remote_dev_id = cable_spec.get("remote_device_id")
+                    iface_name = cable_spec.get("remote_interface")
+                    iface_type = cable_spec.get("remote_type", "other")
+                    if remote_dev_id and iface_name:
+                        try:
+                            dev = Device.objects.get(id=remote_dev_id)
+                            iface = Interface.objects.create(
+                                device=dev, name=iface_name, type=iface_type, status=iface_active_status
+                            )
+                            term_b_id = str(iface.id)
+                        except Exception as e:
+                            errors.append(f"Failed to create remote interface {iface_name}: {str(e)}")
+                            continue
+
+                if not term_a_id or not term_b_id:
+                    errors.append(
+                        f"Missing interface ID for {cable_spec.get('local_interface')} -> "
+                        f"{cable_spec.get('remote_interface')}"
+                    )
+                    continue
+
                 # Model mapping
                 model_map = {
                     "interface": Interface,
@@ -684,11 +727,11 @@ class TopologyViewSet(ViewSet):
                     "consoleserverport": ConsoleServerPort,
                 }
 
-                local_type = cable_spec.get("local_interface_type", "interface")
-                remote_type = cable_spec.get("remote_interface_type", "interface")
+                local_type_cat = cable_spec.get("local_interface_type", "interface")
+                remote_type_cat = cable_spec.get("remote_interface_type", "interface")
 
-                model_a = model_map.get(local_type, Interface)
-                model_b = model_map.get(remote_type, Interface)
+                model_a = model_map.get(local_type_cat, Interface)
+                model_b = model_map.get(remote_type_cat, Interface)
 
                 term_a = model_a.objects.get(id=term_a_id)
                 term_b = model_b.objects.get(id=term_b_id)
@@ -706,7 +749,10 @@ class TopologyViewSet(ViewSet):
                 cable.validated_save()
                 created_cables.append(str(cable.id))
             except Exception as e:
-                errors.append(f"Error creating cable between {term_a_id} and {term_b_id}: {str(e)}")
+                errors.append(
+                    f"Error processing cable {cable_spec.get('local_interface')} -> "
+                    f"{cable_spec.get('remote_interface')}: {str(e)}"
+                )
 
         return Response(
             {
@@ -724,7 +770,7 @@ class TopologyViewSet(ViewSet):
 
             raw_choices = CableTypeChoices.CHOICES
             choices = []
-            
+
             for item in raw_choices:
                 # Nautobot/Django choices can be (value, label) or (group_name, list_of_choices)
                 if len(item) == 2 and isinstance(item[1], (list, tuple)):

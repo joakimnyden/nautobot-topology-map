@@ -1,6 +1,6 @@
 from unittest.mock import patch, MagicMock
 from django.test import override_settings
-from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
+from rest_framework.test import APITestCase, APIRequestFactory
 from nautobot_topology.api.views import TopologyViewSet
 from django.contrib.auth import get_user_model
 

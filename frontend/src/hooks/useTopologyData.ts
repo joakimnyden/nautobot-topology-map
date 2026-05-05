@@ -127,7 +127,7 @@ export function useTopologyData({
         const stackId = `stack-${parentId}`;
         nodes.push({
           id: stackId,
-          type: 'cluster',
+          type: 'apStack',
           style: { background: 'transparent', border: 'none' },
           data: { 
             count: groupNodes.length, 

@@ -113,16 +113,66 @@ class APGroupingTest(TestCase):
 
         # Interface data
         mock_iface.return_value.values.return_value = [
-            {"id": "iface1", "device_id": "dev1", "device__name": "Router 1", "name": "eth0", "lag_id": None, "type": "1000base-t", "speed": 1000000},
-            {"id": "iface2", "device_id": "dev2", "device__name": "AP 1", "name": "eth0", "lag_id": None, "type": "1000base-t", "speed": 1000000},
-            {"id": "iface3", "device_id": "dev3", "device__name": "AP 2", "name": "eth0", "lag_id": None, "type": "1000base-t", "speed": 1000000},
-            {"id": "iface6", "device_id": "dev6", "device__name": "Router 2", "name": "eth0", "lag_id": None, "type": "1000base-t", "speed": 1000000},
+            {
+                "id": "iface1",
+                "device_id": "dev1",
+                "device__name": "Router 1",
+                "name": "eth0",
+                "lag_id": None,
+                "type": "1000base-t",
+                "speed": 1000000,
+            },
+            {
+                "id": "iface2",
+                "device_id": "dev2",
+                "device__name": "AP 1",
+                "name": "eth0",
+                "lag_id": None,
+                "type": "1000base-t",
+                "speed": 1000000,
+            },
+            {
+                "id": "iface3",
+                "device_id": "dev3",
+                "device__name": "AP 2",
+                "name": "eth0",
+                "lag_id": None,
+                "type": "1000base-t",
+                "speed": 1000000,
+            },
+            {
+                "id": "iface6",
+                "device_id": "dev6",
+                "device__name": "Router 2",
+                "name": "eth0",
+                "lag_id": None,
+                "type": "1000base-t",
+                "speed": 1000000,
+            },
         ]
         # Cable data
         mock_cable.return_value.values.return_value = [
-            {"id": "cable1", "termination_a_id": "iface2", "termination_b_id": "iface1", "label": "Link 1", "type": "copper"},
-            {"id": "cable2", "termination_a_id": "iface3", "termination_b_id": "iface1", "label": "Link 2", "type": "copper"},
-            {"id": "cable3", "termination_a_id": "iface6", "termination_b_id": "iface1", "label": "Link 3", "type": "copper"},
+            {
+                "id": "cable1",
+                "termination_a_id": "iface2",
+                "termination_b_id": "iface1",
+                "label": "Link 1",
+                "type": "copper",
+            },
+            {
+                "id": "cable2",
+                "termination_a_id": "iface3",
+                "termination_b_id": "iface1",
+                "label": "Link 2",
+                "type": "copper",
+            },
+            {
+                "id": "cable3",
+                "termination_a_id": "iface6",
+                "termination_b_id": "iface1",
+                "label": "Link 3",
+                "type": "copper",
+            },
         ]
 
         request = self.factory.get("/api/plugins/nautobot_topology/topology/site1/")

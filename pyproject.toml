@@ -33,6 +33,7 @@ dependencies = [
     "factory-boy",
     "nautobot-bgp-models>=3.1.1",
     "ntc-templates",
+    "netmiko>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -69,7 +70,17 @@ include = [
 
 [tool.black]
 line-length = 120
-target-version = ['py311', 'py312', 'py313', 'py314']
+target-version = ['py312', 'py313', 'py314']
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | scratch
+  | scripts
+)/
+'''
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
