@@ -66,6 +66,6 @@ describe('CableDiscovery Component', () => {
     });
 
     render(<CableDiscovery />);
-    expect(screen.getByPlaceholderText(/Search discovered links/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/Filter results/i)).toBeDefined();
   });
 });
