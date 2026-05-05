@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import { Site } from '../types';
 import { DiscoveryHeader } from './discovery/DiscoveryHeader';
 import { DiscoveryControlPanel } from './discovery/DiscoveryControlPanel';
@@ -15,7 +15,6 @@ interface CableDiscoveryProps {
 }
 
 export default function CableDiscovery({ site, onClose, isStandalone }: CableDiscoveryProps) {
-  const [cableType, setCableType] = useState('cat6a');
   const [siteSearch, setSiteSearch] = useState('');
   const [deviceSearch, setDeviceSearch] = useState('');
   const [resultSearch, setResultSearch] = useState('');
@@ -39,7 +38,8 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
     handleDiscoverAll,
     handleImport,
     cableChoices
-  } = useDiscovery(site, isStandalone, cableType);
+  } = useDiscovery(site, isStandalone);
+
 
   return (
     <div className="w-full flex flex-col h-full max-h-[calc(100vh-250px)] bg-transparent text-slate-200 relative z-10 overflow-hidden px-1">
@@ -54,7 +54,7 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
         <DiscoveryHeader onClose={onClose} isStandalone={isStandalone} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 relative z-50 flex-shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-4 relative z-50 flex-shrink-0">
         <div className="lg:col-span-2">
           <DiscoveryControlPanel 
             isStandalone={isStandalone}
@@ -81,13 +81,16 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
           />
         </div>
 
-        <DiscoverySummary 
-          error={error}
-          message={message}
-          isLoading={isLoading}
-          resultsCount={results.length}
-          readyToImportCount={results.filter(r => r.is_matched && !r.cable_exists).length}
-        />
+        <div className="flex flex-col gap-4">
+          <DiscoverySummary 
+            error={error}
+            message={message}
+            isLoading={isLoading}
+            resultsCount={results.length}
+            readyToImportCount={results.filter(r => (r.is_matched || r.create_if_missing) && !r.cable_exists).length}
+          />
+          
+        </div>
       </div>
 
       {results.length > 0 && (
@@ -95,8 +98,6 @@ export default function CableDiscovery({ site, onClose, isStandalone }: CableDis
           results={results}
           resultSearch={resultSearch}
           setResultSearch={setResultSearch}
-          cableType={cableType}
-          setCableType={setCableType}
           setResults={setResults}
           onImport={handleImport}
           importing={importing}

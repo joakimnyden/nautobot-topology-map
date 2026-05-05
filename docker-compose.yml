@@ -45,6 +45,7 @@ services:
       - ".env.local.example"
     environment:
       prometheus_multiproc_dir: "/tmp"
+      NAUTOBOT_INSTALLATION_METRICS_ENABLED: "False"
     volumes:
       - "./nautobot_topology:/usr/local/lib/python3.12/site-packages/nautobot_topology"
       - "./nautobot_topology:/opt/nautobot/nautobot_topology"
@@ -70,6 +71,7 @@ services:
       - ".env.local.example"
     environment:
       prometheus_multiproc_dir: "/tmp"
+      NAUTOBOT_INSTALLATION_METRICS_ENABLED: "False"
     volumes:
       - "./nautobot_topology:/usr/local/lib/python3.12/site-packages/nautobot_topology"
       - "./nautobot_topology:/opt/nautobot/nautobot_topology"

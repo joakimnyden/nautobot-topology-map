@@ -14,7 +14,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.14
       - name: Install dependencies
         run: uv sync --extra dev
       - name: Run Black
@@ -24,9 +24,12 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
     services:
       postgres:
-        image: postgres:13
+        image: postgres:15
         env:
           POSTGRES_USER: nautobot
           POSTGRES_DB: nautobot
@@ -39,7 +42,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:6-alpine
+        image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -53,9 +56,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --extra test
+        run: |
+          uv sync --extra test
+          uv pip install nautobot==3.0.11
       - name: Initialize Nautobot
         env:
           NAUTOBOT_DB_HOST: localhost
@@ -63,6 +68,7 @@ jobs:
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
           NAUTOBOT_REDIS_HOST: localhost
+          NAUTOBOT_INSTALLATION_METRICS_ENABLED: "False"
           DJANGO_SETTINGS_MODULE: nautobot.core.settings
         run: |
           uv run nautobot-server init
@@ -73,5 +79,19 @@ jobs:
           NAUTOBOT_DB_NAME: nautobot
           NAUTOBOT_DB_PASSWORD: nautobot
           NAUTOBOT_REDIS_HOST: localhost
+          NAUTOBOT_INSTALLATION_METRICS_ENABLED: "False"
           DJANGO_SETTINGS_MODULE: nautobot.core.settings
-        run: uv run pytest
+        run: uv run nautobot-server test nautobot_topology --noinput
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: cd frontend && npm install
+      - name: Run frontend tests
+        run: cd frontend && npm test

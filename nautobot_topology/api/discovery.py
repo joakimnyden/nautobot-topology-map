@@ -12,10 +12,12 @@ from django.db.models import Q
 # Logger for Nautobot server visibility
 logger = logging.getLogger("nautobot.plugin.topology_map.discovery")
 
+
 def debug_log(message):
     """Log messages to the server console if debug mode is enabled in settings."""
     try:
         from django.conf import settings
+
         plugin_config = getattr(settings, "PLUGINS_CONFIG", {}).get("nautobot_topology", {})
         if plugin_config.get("debug", False):
             print(f"TOPOLOGY-DISCOVERY: {message}")
@@ -119,7 +121,6 @@ def guess_netmiko_device_type(device):
 from django.conf import settings  # noqa: E402
 from django.core.exceptions import ValidationError  # noqa: E402
 import random  # noqa: E402
-import os  # noqa: E402
 
 
 def setup_textfsm():
@@ -228,7 +229,7 @@ def discover_neighbors(device_id):
             try:
                 debug_log(f"Sending LLDP command: {cmd}")
                 lldp_output = net_connect.send_command(cmd, use_textfsm=True)
-                
+
                 if isinstance(lldp_output, list):
                     debug_log(f"LLDP Parsing success: found {len(lldp_output)} entries")
                     for entry in lldp_output:
@@ -245,7 +246,7 @@ def discover_neighbors(device_id):
                                 }
                             )
                             seen_interfaces.add(local_iface)
-                    
+
                     if lldp_output:
                         break
                 else:
@@ -268,7 +269,7 @@ def discover_neighbors(device_id):
             try:
                 debug_log(f"Sending CDP command: {cmd}")
                 cdp_output = net_connect.send_command(cmd, use_textfsm=True)
-                
+
                 if isinstance(cdp_output, list):
                     debug_log(f"CDP Parsing success: found {len(cdp_output)} entries")
                     for entry in cdp_output:
@@ -285,7 +286,7 @@ def discover_neighbors(device_id):
                                         "protocol": "CDP",
                                     }
                                 )
-                    
+
                     if cdp_output:
                         break
                 else:
@@ -308,13 +309,7 @@ def _extract_neighbor_data(entry):
     e = {k.lower(): v for k, v in entry.items()}
 
     # Local interface keys
-    local_iface = (
-        e.get("local_interface")
-        or e.get("local_port")
-        or e.get("interface")
-        or e.get("port")
-        or ""
-    )
+    local_iface = e.get("local_interface") or e.get("local_port") or e.get("interface") or e.get("port") or ""
 
     # Remote device keys
     remote_dev = (
@@ -341,13 +336,7 @@ def _extract_neighbor_data(entry):
     )
 
     # Remote IP keys
-    remote_ip = (
-        e.get("mgmt_address")
-        or e.get("management_ip")
-        or e.get("address")
-        or e.get("ip_address")
-        or ""
-    )
+    remote_ip = e.get("mgmt_address") or e.get("management_ip") or e.get("address") or e.get("ip_address") or ""
 
     if not remote_dev:
         debug_log(f"    DEBUG: Failed to find remote_dev. Available keys: {list(e.keys())}")
@@ -408,10 +397,13 @@ def normalize_interface_name(name):
 
     # Expand common abbreviations
     name = re.sub(r"^gi(\d)", r"gigabitethernet\1", name)
+    name = re.sub(r"^ge-?(\d)", r"gigabitethernet\1", name)
     name = re.sub(r"^te(\d)", r"tengigabitethernet\1", name)
+    name = re.sub(r"^xe-?(\d)", r"tengigabitethernet\1", name)
     name = re.sub(r"^tw(\d)", r"twentyfivegigabitethernet\1", name)
     name = re.sub(r"^fo(\d)", r"fortygigabitethernet\1", name)
     name = re.sub(r"^hu(\d)", r"hundredgigabitethernet\1", name)
+    name = re.sub(r"^et-?(\d)", r"hundredgigabitethernet\1", name)
     name = re.sub(r"^fa(\d)", r"fastethernet\1", name)
     name = re.sub(r"^eth(\d)", r"ethernet\1", name)
     name = re.sub(r"^po(\d)", r"port-channel\1", name)
@@ -421,9 +413,91 @@ def normalize_interface_name(name):
     return name
 
 
+CABLE_MAPPING = {
+    "1000base-t": "cat6",
+    "10gbase-t": "cat6a",
+    "10gbase-x-sfpp": "smf",
+    "25gbase-x-sfp28": "smf",
+    "40gbase-x-qsfpp": "smf",
+    "100gbase-x-qsfp28": "smf",
+    "1000base-x-sfp": "smf",
+    "1000base-sx": "mmf",
+    "1000base-lx": "smf",
+    "100base-tx": "cat5e",
+    "2.5gbase-t": "cat6",
+    "5gbase-t": "cat6",
+    "dac-active": "dac-active",
+    "dac-passive": "dac-passive",
+}
+
+SPEED_VALUES = {
+    "1000base-t": 1,
+    "1000base-x-sfp": 1,
+    "10gbase-t": 10,
+    "10gbase-x-sfpp": 10,
+    "25gbase-x-sfp28": 25,
+    "40gbase-x-qsfpp": 40,
+    "100gbase-x-qsfp28": 100,
+    "2.5gbase-t": 2.5,
+    "5gbase-t": 5,
+}
+
+
+def guess_interface_type(name):
+    """Guess Nautobot interface type from name."""
+    if not name:
+        return "other"
+
+    name = name.lower()
+
+    # SFP/Fiber patterns (Highest priority)
+    if "sfp" in name:
+        if "28" in name:
+            return "25gbase-x-sfp28"
+        if "56" in name:
+            return "50gbase-x-sfp56"
+        if "+" in name or "p" in name or "10" in name:
+            return "10gbase-x-sfpp"
+        return "1000base-x-sfp"
+
+    if any(x in name for x in ["xe-", "te-", "10g"]):
+        return "10gbase-x-sfpp"
+    if any(x in name for x in ["et-", "25g", "sfp28"]):
+        return "25gbase-x-sfp28"
+    if any(x in name for x in ["fo-", "40g", "qsfpp"]):
+        return "40gbase-x-qsfpp"
+    if any(x in name for x in ["et-", "100g", "qsfp28"]):
+        return "100gbase-x-qsfp28"
+
+    # Standard Ethernet patterns
+    if any(x in name for x in ["gigabitethernet", "gi", "ge-", "eth"]):
+        return "1000base-t"
+    if "tengigabitethernet" in name or "te" in name:
+        return "10gbase-x-sfpp"
+    if "fortygigabitethernet" in name or "fo" in name:
+        return "40gbase-x-qsfpp"
+    if "hundredgigabitethernet" in name or "hu" in name:
+        return "100gbase-x-qsfp28"
+    if "fastethernet" in name or "fa" in name:
+        return "100base-tx"
+    if "port-channel" in name or "po" in name:
+        return "lag"
+    if "virtual" in name or "vlan" in name:
+        return "virtual"
+    return "other"
+
+
 def _build_component_map(device):
     """Build a map of component names to their objects and types for a device."""
     cmap = {}
+    lag_speeds = {}
+
+    # Pre-calculate LAG speeds
+    if hasattr(device, "interfaces"):
+        for iface in device.interfaces.all():
+            if iface.lag:
+                speed = SPEED_VALUES.get(iface.type, 0)
+                lag_speeds[iface.lag.name] = lag_speeds.get(iface.lag.name, 0) + speed
 
     def add_to_map(queryset, ctype):
         for obj in queryset:
@@ -433,7 +507,16 @@ def _build_component_map(device):
             if norm != obj.name.lower():
                 cmap[norm] = (obj, ctype)
 
-    add_to_map(device.interfaces.all(), "interface")
+            # Add type information if available
+            if hasattr(obj, "type"):
+                cmap[f"{obj.name.lower()}_type"] = obj.type
+
+                # Add LAG speed info if it's an interface and in a LAG
+                if ctype == "interface" and hasattr(obj, "lag") and obj.lag:
+                    cmap[f"{obj.name.lower()}_lag_speed"] = lag_speeds.get(obj.lag.name)
+
+    if hasattr(device, "interfaces"):
+        add_to_map(device.interfaces.all(), "interface")
     if hasattr(device, "frontports"):
         add_to_map(device.frontports.all(), "frontport")
     if hasattr(device, "rearports"):
@@ -470,7 +553,7 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
         local_term_obj, local_term_type = local_cmap.get(norm_local_name, (None, None))
         if not local_term_obj:
             local_term_obj, local_term_type = local_cmap.get(local_iface_name.lower(), (None, None))
-        
+
         if not local_term_obj:
             debug_log(f"  FAILED to match local interface: {local_iface_name} (norm: {norm_local_name})")
         else:
@@ -546,22 +629,45 @@ def standardize_and_match_neighbors(local_device, raw_neighbors):
             else None
         )
 
+        # Get or guess types
+        local_type = local_cmap.get(f"{local_iface_name.lower()}_type")
+        if not local_type and local_term_obj and hasattr(local_term_obj, "type"):
+            local_type = local_term_obj.type
+        if not local_type:
+            local_type = guess_interface_type(local_iface_name)
+
+        remote_type = None
+        if remote_dev_obj:
+            dev_id = str(remote_dev_obj.id)
+            rcmap = remote_cmap_cache.get(dev_id, {})
+            remote_type = rcmap.get(f"{remote_iface_name.lower()}_type")
+            if not remote_type and remote_term_obj and hasattr(remote_term_obj, "type"):
+                remote_type = remote_term_obj.type
+
+        if not remote_type:
+            remote_type = guess_interface_type(remote_iface_name)
+
         results.append(
             {
                 "local_interface": local_iface_name,
                 "local_interface_id": str(local_term_obj.id) if local_term_obj else None,
-                "local_interface_type": local_term_type,
+                "local_interface_type": local_term_type or "interface",
+                "local_type": local_type,
+                "local_device_id": str(local_device.id),
                 "local_lag": local_lag_name,
                 "remote_device": remote_dev_name,
                 "remote_device_id": str(remote_dev_obj.id) if remote_dev_obj else None,
                 "remote_interface": remote_iface_name,
                 "remote_interface_id": str(remote_term_obj.id) if remote_term_obj else None,
-                "remote_interface_type": remote_term_type,
+                "remote_interface_type": remote_term_type or "interface",
+                "remote_type": remote_type,
                 "remote_lag": remote_lag_name,
                 "remote_ip": remote_ip,
                 "protocol": neighbor["protocol"],
                 "cable_exists": cable_exists,
                 "is_matched": bool(local_term_obj and remote_dev_obj and remote_term_obj),
+                "suggested_cable": CABLE_MAPPING.get(local_type),
+                "local_lag_speed": local_cmap.get(f"{local_iface_name.lower()}_lag_speed"),
             }
         )
 

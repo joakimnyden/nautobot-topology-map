@@ -26,17 +26,26 @@ def stop(context):
 
 
 @task
-def unittest(context, test_runner="nautobot_topology.tests"):
+def unittest(context, test_runner="nautobot_topology.tests", keepdb=True):
     """Run Nautobot Topology unit tests."""
     print(f"Running tests for {test_runner}...")
+    keepdb_flag = "--keepdb" if keepdb else ""
     context.run(
-        f"docker-compose exec -T nautobot nautobot-server test {test_runner} --noinput", pty=False, in_stream=False
+        f"docker-compose exec -T nautobot nautobot-server test {test_runner} --noinput {keepdb_flag}",
+        pty=False,
+        in_stream=False,
     )
 
 
 @task
-def test(context, module=None, coverage=False):
-    """Run Nautobot tests."""
+def test(context, module=None, coverage=False, keepdb=True):
+    """Run Nautobot tests.
+
+    Args:
+        module: Specific test module to run (e.g. 'test_views')
+        coverage: Run tests with coverage reporting
+        keepdb: Keep the test database between runs (faster)
+    """
     print("Running tests...")
 
     # Base command
@@ -44,12 +53,14 @@ def test(context, module=None, coverage=False):
     if module:
         test_target = f"nautobot_topology.tests.{module}" if not module.startswith("nautobot_topology") else module
 
+    keepdb_flag = "--keepdb" if keepdb else ""
+
     if coverage:
         print("Running with coverage...")
-        cmd = f"docker compose exec -T nautobot coverage run --source=nautobot_topology -m nautobot.core.cli test {test_target} --noinput"
+        cmd = f"docker compose exec -T nautobot coverage run --source=nautobot_topology -m nautobot.core.cli test {test_target} --noinput {keepdb_flag}"
         context.run("docker compose exec -T nautobot coverage erase", pty=False, in_stream=False)
     else:
-        cmd = f"docker compose exec -T nautobot nautobot-server test {test_target} --noinput"
+        cmd = f"docker compose exec -T nautobot nautobot-server test {test_target} --noinput {keepdb_flag}"
 
     result = context.run(cmd, pty=False, in_stream=False, warn=True)
 
@@ -74,15 +85,15 @@ def build_ui(context):
 def lint(context):
     """Run linters."""
     print("Running linters...")
-    context.run("docker-compose exec -T nautobot black --check nautobot_topology", pty=False, in_stream=False)
-    context.run("docker-compose exec -T nautobot flake8 nautobot_topology", pty=False, in_stream=False)
+    context.run("docker-compose exec -T nautobot black --check --fast .", pty=False, in_stream=False)
+    context.run("docker-compose exec -T nautobot flake8 .", pty=False, in_stream=False)
 
 
 @task
 def format(context):
     """Run code formatters."""
     print("Formatting code...")
-    context.run("docker-compose exec -T nautobot black nautobot_topology", pty=False, in_stream=False)
+    context.run("docker-compose exec -T nautobot black --fast .", pty=False, in_stream=False)
 
 
 @task
@@ -107,7 +118,7 @@ def seed(context):
     context.run(
         "docker compose exec -T nautobot nautobot-server shell --command "
         "\"import sys; sys.path.append('/opt/nautobot/scripts'); "
-        "import generate_complex_site; generate_complex_site.run()\"",
+        'import generate_complex_site; generate_complex_site.run()"',
         pty=False,
         in_stream=False,
     )
@@ -121,7 +132,7 @@ def seed_varied(context):
     context.run(
         "docker compose exec -T nautobot nautobot-server shell --command "
         "\"import sys; sys.path.append('/opt/nautobot/scripts'); "
-        "import generate_varied_sites; generate_varied_sites.run()\"",
+        'import generate_varied_sites; generate_varied_sites.run()"',
         pty=False,
         in_stream=False,
     )
@@ -168,7 +179,7 @@ def setup_dev(context):
     # Clear cache to ensure data is visible
     context.run(
         "docker compose exec -T nautobot bash -c \"echo 'from django.core.cache import cache; cache.clear()' | "
-        "nautobot-server shell\"",
+        'nautobot-server shell"',
         pty=False,
         in_stream=False,
     )

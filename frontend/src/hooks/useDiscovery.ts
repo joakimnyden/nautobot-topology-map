@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Site } from '../types';
 import { mockDiscoveryResults } from '../components/discovery/discoveryMocks';
 
-export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: string = 'cat6a') => {
+export const useDiscovery = (site?: Site, isStandalone?: boolean) => {
   const [selectedSiteId, setSelectedSiteId] = useState<string>(site?.id || '');
   const [sites, setSites] = useState<Site[]>([]);
   const [devices, setDevices] = useState<any[]>([]);
@@ -34,12 +34,36 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
     fetch('/api/plugins/nautobot_topology/topology/cable_choices/')
       .then(res => res.json())
       .then(data => {
-        if (data.results) {
+        if (data.results && data.results.length > 0) {
           setCableChoices(data.results);
         }
       })
       .catch(err => console.error('Failed to fetch cable choices:', err));
   }, [isStandalone]);
+  
+  // Re-enrich results when cableChoices become available
+  useEffect(() => {
+    if (cableChoices.length > 0 && results.length > 0) {
+      const needsUpdate = results.some(r => !r.type || r.type === 'other' || !cableChoices.some(c => c.value === r.type));
+      if (needsUpdate) {
+        setResults(prev => prev.map(r => {
+          let finalType = r.suggested_cable;
+          const isValid = cableChoices.some(c => c.value.toLowerCase() === finalType?.toLowerCase());
+          
+          if (!isValid) {
+            const smf = cableChoices.find(c => c.value.toLowerCase() === 'smf');
+            const cat6a = cableChoices.find(c => c.value.toLowerCase() === 'cat6a');
+            const cat6 = cableChoices.find(c => c.value.toLowerCase() === 'cat6');
+            const nonCat3 = cableChoices.find(c => !c.value.toLowerCase().includes('cat3'));
+            
+            const bestFallback = smf || cat6a || cat6 || nonCat3 || cableChoices[0];
+            finalType = bestFallback?.value || 'other';
+          }
+          return { ...r, type: finalType };
+        }));
+      }
+    }
+  }, [cableChoices, results.length]);
 
   // Fetch devices when site selection changes
   useEffect(() => {
@@ -113,7 +137,23 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
       const data = await res.json();
       
       if (data.status === 'success') {
-        const enrichedData = data.data.map((r: any) => ({ ...r, type: cableType }));
+        const enrichedData = data.data.map((r: any) => {
+          let finalType = r.suggested_cable;
+          const isValid = cableChoices.some(c => c.value.toLowerCase() === finalType?.toLowerCase());
+          
+          if (!isValid) {
+            // Find Cat6, Cat6a, or first choice that isn't Cat3 if possible
+            const smf = cableChoices.find(c => c.value.toLowerCase() === 'smf');
+            const cat6a = cableChoices.find(c => c.value.toLowerCase() === 'cat6a');
+            const cat6 = cableChoices.find(c => c.value.toLowerCase() === 'cat6');
+            const nonCat3 = cableChoices.find(c => !c.value.toLowerCase().includes('cat3'));
+            
+            const bestFallback = smf || cat6a || cat6 || nonCat3 || cableChoices[0];
+            finalType = bestFallback?.value || 'other';
+          }
+
+          return { ...r, type: finalType };
+        });
         if (deviceId) {
           setResults(prev => [...prev, ...enrichedData]);
           return enrichedData;
@@ -155,7 +195,7 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
   };
 
   const handleImport = () => {
-    const validCables = results.filter(r => r.is_matched && !r.cable_exists);
+    const validCables = results.filter(r => (r.is_matched || r.create_if_missing) && !r.cable_exists);
     if (validCables.length === 0) return;
 
     setImporting(true);
@@ -175,7 +215,7 @@ export const useDiscovery = (site?: Site, isStandalone?: boolean, cableType: str
       .then(data => {
         if (data.status === 'success') {
           setMessage(`Successfully imported ${data.created} cables.`);
-          setResults(results.map(r => r.is_matched ? { ...r, cable_exists: true } : r));
+          setResults(results.map(r => (r.is_matched || r.create_if_missing) ? { ...r, cable_exists: true, is_matched: true, create_if_missing: false } : r));
         } else {
           setError(`Import partial. ${data.created} created. Errors: ${data.errors.join(', ')}`);
         }

@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 
 
-class FrontPortBugTest(APITestCase):
+class TopologyFrontPortTest(APITestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create(username="testuser", is_superuser=True, is_staff=True)

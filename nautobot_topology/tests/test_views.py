@@ -119,9 +119,11 @@ class TopologyViewSetRetrieveTest(TestCase):
         mock_dev.role.name = "Edge"
         mock_dev.platform.name = "Cisco"
         mock_dev.device_type.manufacturer.name = "Cisco"
+        mock_dev.device_type.model = "CSR1000v"
         mock_dev.status.name = "Active"
         mock_dev.primary_ip4.address.ip = "1.1.1.1"
         mock_dev.primary_ip6 = None
+        mock_dev.get_absolute_url.return_value = "/dcim/devices/456/"
 
         mock_dev_qs = MagicMock()
         mock_dev_qs.filter.return_value = mock_dev_qs
@@ -179,6 +181,7 @@ class TopologyViewSetRetrieveTest(TestCase):
             d.status.name = "Active"
             d.primary_ip4 = None
             d.primary_ip6 = None
+            d.get_absolute_url.return_value = f"/dcim/devices/{dev_id}/"
             return d
 
         devs = [
@@ -286,9 +289,7 @@ class TopologyViewSetMetricsTest(TestCase):
 
     @override_settings(PLUGINS_CONFIG={"nautobot_topology": {"prometheus_enabled": False}})
     def test_metrics_disabled(self):
-        with (
-            patch("nautobot_topology.api.views.Location.objects.get") as mock_get,
-        ):
+        with (patch("nautobot_topology.api.views.Location.objects.get") as mock_get,):
             mock_get.return_value = MagicMock()
             response = self.client.get("/api/plugins/nautobot_topology/topology/123/metrics/")
         self.assertEqual(response.status_code, 200)

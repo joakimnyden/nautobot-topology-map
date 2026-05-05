@@ -51,7 +51,7 @@ class TopologyPermissionsTest(APITestCase):
         obj_perm.users.add(self.user)
         obj_perm.object_types.add(ContentType.objects.get_for_model(TopologyLayout))
         obj_perm.save()
-        
+
         # Re-fetch user to ensure permissions are picked up
         self.user = User.objects.get(pk=self.user.pk)
         self.client.force_authenticate(user=self.user)
